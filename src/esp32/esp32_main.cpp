@@ -1730,9 +1730,8 @@ void esp32loop()
                     Serial.printf("volt %.1f proz %i\n", global_batt, global_proz);
                 }
             #endif
-
-            BattTimeWait = millis();
         }
+        BattTimeWait = millis();
     }
 
     checkButtonState();
