@@ -502,169 +502,7 @@ String work_webpage(bool bget_password, int webid)
             // SPECTRUM
             // INFO
             // SETUP
-            if(web_page_state == 4)
-            {
-                web_client.println("<tr><td><b>&nbsp;SETUP BUTTONS</b></td></tr><tr>");
-
-                if (bDisplayOff)
-                {
-                    web_client.println("<td><a href=\"/display/on\"><button class=\"button\"><b>DISPLAY</b></button></a></td>");
-                }
-                else
-                {
-                    web_client.println("<td><a href=\"/display/off\"><button class=\"button button2\"><b>DISPLAY</b></button></a></td>");
-                }
-
-                // GPS Button
-                if (bGPSON)
-                {
-                    web_client.println("<td><a href=\"/gps/off\"><button class=\"button button2\"><b>GPS</b></button></a></td>");
-                }
-                else
-                {
-                    web_client.println("<td><a href=\"/gps/on\"><button class=\"button\"><b>GPS</b></button></a></td>");
-                }
-
-                // TRACK ON
-                if (bDisplayTrack)
-                {
-                    web_client.println("<td><a href=\"/track/off\"><button class=\"button button2\"><b>TRACK</b></button></a></td>");
-                }
-                else
-                {
-                    web_client.println("<td><a href=\"/track/on\"><button class=\"button\"><b>TRACK</b></button></a></td>");
-                }
-
-                // BUTON ON
-                if (bButtonCheck)
-                {
-                    web_client.println("<td><a href=\"/button/off\"><button class=\"button button2\"><b>BUTTON</b></button></a></td>");
-                }
-                else
-                {
-                    web_client.println("<td><a href=\"/button/on\"><button class=\"button\"><b>BUTTON</b></button></a></td></tr>");
-                }
-
-                // NEXT LINE
-                // BME280 ON
-                if (bBMEON)
-                {
-                    web_client.println("<tr><td><a href=\"/bme/off\"><button class=\"button button2\"><b>BME 280</b></button></a></td>");
-                }
-                else
-                {
-                    web_client.println("<tr><td><a href=\"/bme/on\"><button class=\"button\"><b>BME 280</b></button></a></td>");
-                }
-
-                // BME280 ON
-                if (bBMPON)
-                {
-                    web_client.println("<td><a href=\"/bmp/off\"><button class=\"button button2\"><b>BMP 280</b></button></a></td>");
-                }
-                else
-                {
-                    web_client.println("<td><a href=\"/bmp/on\"><button class=\"button\"><b>BMP 280</b></button></a></td>");
-                }
-
-                // BME680 ON
-                if (bBME680ON)
-                {
-                    web_client.println("<td><a href=\"/bme680/off\"><button class=\"button button2\"><b>BME 680</b></button></a></td>");
-                }
-                else
-                {
-                    web_client.println("<td><a href=\"/bme680/on\"><button class=\"button\"><b>BME 680</b></button></a></td>");
-                }
-
-                // MCU811 ON
-                if (bMCU811ON)
-                {
-                    web_client.println("<td><a href=\"/mcu/off\"><button class=\"button button2\"<b>MCU 811</b></button></a></td></tr>");
-                }
-                else
-                {
-                    web_client.println("<td><a href=\"/mcu/on\"><button class=\"button\"><b>MCU 811</b></button></a></td></tr>");
-                }
-
-                // MESH ON
-                if (bMESH)
-                {
-                    web_client.println("<tr><td><a href=\"/mesh/off\"><button class=\"button button2\"<b>MESH</b></button></a></td>");
-                }
-                else
-                {
-                    web_client.println("<tr><td><a href=\"/mesh/on\"><button class=\"button\"><b>MESH</b></button></a></td>");
-                }
-
-                // ONEWIRE ON
-                if (bONEWIRE)
-                {
-                    web_client.printf("<td><a href=\"/onewire/off\"><button class=\"button button2\"<b>ONEWIRE (%i)</b></button></a></td>\n", meshcom_settings.node_owgpio);
-                }
-                else
-                {
-                    web_client.printf("<td><a href=\"/onewire/on\"><button class=\"button\"><b>ONEWIRE (%i)</b></button></a></td>\n", meshcom_settings.node_owgpio);
-                }
-
-                // VOLT/PROZ
-                if ((meshcom_settings.node_sset & 0x0001) == 0x0001)
-                {
-                    web_client.println("<td><a href=\"/volt/off\"><button class=\"button button2\"<b>VOLT</b></button></a></td>");
-                }
-                else
-                {
-                    web_client.println("<td><a href=\"/volt/on\"><button class=\"button\"><b>VOLT</b></button></a></td>");
-                }
-
-                // INA226
-                if (bINA226ON)
-                {
-                    web_client.println("<td><a href=\"/ina226/off\"><button class=\"button button2\"<b>INA226</b></button></a></td>");
-                }
-                else
-                {
-                    web_client.println("<td><a href=\"/ina226/on\"><button class=\"button\"><b>INA226</b></button></a></td></tr>");
-                }
-
-                // ANALOG CHECK
-                if (bAnalogCheck)
-                {
-                    web_client.println("<tr><td><a href=\"/checkanalog/off\"><button class=\"button button2\"<b>ANALOG</b></button></a></td>");
-                }
-                else
-                {
-                    web_client.println("<tr><td><a href=\"/checkanalog/on\"><button class=\"button\"><b>ANALOG</b></button></a></td>");
-                }
-
-                // SMALLDISPLAY
-                if (bSMALLDISPLAY)
-                {
-                    web_client.println("<td><a href=\"/smalldisplay/off\"><button class=\"button button2\"<b>SMALL</b></button></a></td>");
-                }
-                else
-                {
-                    web_client.println("<td><a href=\"/smalldisplay/on\"><button class=\"button\"><b>SMALL</b></button></a></td>");
-                }
-
-                // NOMSGALL
-                if (bNoMSGtoALL)
-                {
-                    web_client.println("<td><a href=\"/nomsgall/off\"><button class=\"button button2\"<b>NOMSGALL</b></button></a></td>");
-                }
-                else
-                {
-                    web_client.println("<td><a href=\"/nomsgall/on\"><button class=\"button\"><b>NOMSGALL</b></button></a></td>");
-                }
-
-                // SOFTSER
-                if (bSOFTSERON)
-                {
-                    web_client.println("<td><a href=\"/softser/off\"><button class=\"button button2\"<b>SOFTSER</b></button></a></td></tr>");
-                }
-                else
-                {
-                    web_client.println("<td><a href=\"/softser/on\"><button class=\"button\"><b>SOFTSER</b></button></a></td></tr>");
-                }
+            
             }
 
             web_client.println("<p style=\"margin: 0px;\" id=\"anchor_button\">&nbsp;</p>");
@@ -1360,34 +1198,32 @@ void sub_content_messages()
 
                     if (msgtxt.indexOf('{') > 0)
                         msgtxt = aprsmsg.msg_payload.substring(0, msgtxt.indexOf('{'));
-
-                    if (strcmp(meshcom_settings.node_call, aprsmsg.msg_source_call.c_str()) == 0)
+                    
+                    //messages by others
+                    if (strcmp(meshcom_settings.node_call, aprsmsg.msg_source_call.c_str()) == 0)   
                     {
                         web_client.printf("<div class=\"message message-send\"><div>");
 
                         web_client.printf("<p class=\"font-small font-bold\">%s", ccheck.c_str());
-                        web_client.printf("<a target=\"_blank\" href=\"https://aprs.fi/?call=%1$s\">AA %1$s</a>", aprsmsg.msg_source_path.c_str());
+                        web_client.printf("<a target=\"_blank\" href=\"https://aprs.fi/?call=%1$s\">%1$s</a>", aprsmsg.msg_source_path.c_str());
                         web_client.printf("%s%s</p>", (char *)">", aprsmsg.msg_destination_path.c_str());
 
                         web_client.printf("<p class=\"font-small font-bold\">%s</p>", timestamp);
                         web_client.printf("<p class=\"font-normal\">%s</p>", msgtxt.c_str());
                         web_client.printf("</div></div>");
-                        // web_client.printf("<tr><td class=\"td2\"></td><td colspan=\"3\"><small>%s<br /><b>%s%s%s%s</b><br /></small>", timestamp, ccheck.c_str(), aprsmsg.msg_source_path.c_str(), (char*)">", aprsmsg.msg_destination_path.c_str());
-                        // web_client.printf("<b>%s</b></td></tr>\n", msgtxt.c_str());
                     }
+                    //own messages
                     else
                     {
                         web_client.printf("<div class=\"message message-received\"><div>");
 
                         web_client.printf("<p class=\"font-small font-bold\">%s", ccheck.c_str());
-                        web_client.printf("<a target=\"_blank\" href=\"https://aprs.fi/?call=%1$s\">BB %1$s</a>", aprsmsg.msg_source_path.c_str());
+                        web_client.printf("<a target=\"_blank\" href=\"https://aprs.fi/?call=%1$s\">%1$s</a>", aprsmsg.msg_source_path.c_str());
                         web_client.printf("%s%s</p>", (char *)">", aprsmsg.msg_destination_path.c_str());
 
                         web_client.printf("<p class=\"font-small font-bold\">%s</p>", timestamp);
                         web_client.printf("<p class=\"font-normal\">%s</p>", msgtxt.c_str());
                         web_client.printf("</div></div>");
-                        // web_client.printf("<tr><td colspan=\"3\"><small>%s<br /><b>%s%s%s%s</b><br /></small>\n", timestamp, ccheck.c_str(), aprsmsg.msg_source_path.c_str(), (char*)">", aprsmsg.msg_destination_path.c_str());
-                        // web_client.printf("<b>%s</b></td><td class=\"td2\"></td></tr>\n", msgtxt.c_str());
                     }
                 }
             }
