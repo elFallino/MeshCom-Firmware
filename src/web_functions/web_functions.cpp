@@ -290,7 +290,7 @@ String work_webpage(bool bget_password, int webid){
                      if(web_header.indexOf("/callfunction/") >= 0) {            // user requested to invoke a function
                         call_function(web_header);
 
-                    } else if(web_header.indexOf("/?sendmessage") >= 0) {              // user requested to send a message to the mesh
+                    } else if(web_header.indexOf("/?sendmessage") >= 0) {       // user requested to send a message to the mesh
                         send_message(web_header);
 
                     } else if(web_header.indexOf("/?getmessages") >= 0) {       // user requested to retrieve the stored messages
