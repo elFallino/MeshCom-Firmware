@@ -62,8 +62,6 @@ definitions for T-Beam-Supreme-L76K
 */
 #define LORA_SF 11
 
-#define LED_PIN 4
-
 #define RESET_OLED RST_OLED
 
 #define VEXT_ENABLE Vext // active low, powers the oled display and the lora antenna boost
@@ -94,3 +92,6 @@ definitions for T-Beam-Supreme-L76K
 #define I2C1_SDA 42
 #define I2C1_SCL 41
 
+#define GPS_RX_PIN 9
+#define GPS_TX_PIN 8
+#define GPS_WAKEUP 7

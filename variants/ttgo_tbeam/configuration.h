@@ -14,6 +14,8 @@ definitions for T-Beam
 #define LORA_APRS_FREQUENCY 433.775000 // 432.900000   // Hz
 #define ENABLE_GPS
 #define ENABLE_BMX280
+#define ENABLE_BMP390
+#define ENABLE_AHT20
 #define ENABLE_BMX680
 #define ENABLE_MCP23017
 #define ENABLE_INA226
@@ -71,3 +73,6 @@ definitions for T-Beam
 #define I2C_SCL    SCL_PIN
 
 #define BUTTON_PIN 38
+
+#define GPS_RX_PIN 34
+#define GPS_TX_PIN 12

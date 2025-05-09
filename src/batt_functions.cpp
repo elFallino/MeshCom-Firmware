@@ -105,7 +105,7 @@ adc_unit_t unit = ADC_UNIT_1;
 //static
 void check_efuse(void)
 {
-#if defined(SX1262_V3) || defined(SX1262_E290)
+#if defined(SX1262_V3) || defined(SX1262_E290) || defined(SX126x_V3)
 	// NOT TESTED
 #elif CONFIG_IDF_TARGET_ESP32
     //Check if TP is burned into eFuse
@@ -182,7 +182,6 @@ void init_batt(void)
 	pinMode(ADC_CTRL_PIN, OUTPUT);
 
 	analogReadResolution(12);
-
 #endif
 
 #if defined(NRF52_SERIES)
@@ -201,6 +200,10 @@ void init_batt(void)
 
 	analogReadResolution(12); // Can be 8, 10, 12 or 14
 
+#elif defined(BOARD_E22_S3)
+	analogSetAttenuation(ADC_0db);
+
+	analogReadResolution(12);
 #else
 	//only for Test check_efuse();
 
@@ -261,15 +264,16 @@ float read_batt(void)
 		pinMode(23, OUTPUT);
   		pinMode(vbat_pin, INPUT);
   
-   		raw = (float)(analogReadMilliVolts(vbat_pin)) / 4095*2*3.3*1.1;
+   		raw = (float)(analogRead(vbat_pin)) / 4095*2*3.3*1.1;
 		
 		// Serial.printf("ADC analog value = <%f>\n", raw);
 
 	#elif defined(BOARD_E290)
 
-   		uint16_t battery_levl = analogReadMilliVolts(vbat_pin);
+   		uint16_t battery_levl = analogRead(vbat_pin);
 		
-		//Serial.printf("ADC analog value = <%i>\n", battery_levl);
+		if(bDisplayCont)
+		 Serial.printf("ADC analog value = <%i>\n", battery_levl);
 	
 		raw = (float)battery_levl;
 
@@ -289,10 +293,10 @@ float read_batt(void)
 		const float factor = (adcMaxVoltage / adcMax) * ((R1 + R2)/(float)R2) * (measuredVoltage / reportedVoltage);
 		
 		//V3.1 digitalWrite(ADC_CTRL_PIN,LOW);
-		digitalWrite(ADC_CTRL_PIN,HIGH);
+		digitalWrite(ADC_CTRL_PIN, HIGH);
 
 		delay(100);
-		int analogValue = analogReadMilliVolts(vbat_pin);
+		int analogValue = analogRead(vbat_pin);
 		
 		//V3.1 digitalWrite(ADC_CTRL_PIN, HIGH);
 		digitalWrite(ADC_CTRL_PIN, LOW);
@@ -311,6 +315,20 @@ float read_batt(void)
 		}
 
 		raw = floatVoltage * 1000.0;
+
+		#elif defined(BOARD_E22_S3)
+
+		uint16_t analogValue = analogReadMilliVolts(BATTERY_PIN);
+
+		raw = (float)analogValue * fBattFaktor;
+
+		if(bDisplayCont)
+		{
+			Serial.printf("[BATT]...reading: %lu factor: %.4f\n", analogValue, fBattFaktor);
+			Serial.printf("[BATT]...voltage: %.2f mV\n", raw);
+			delay(1000); 
+		}
+
 	#else
 
 	int imax=1;
@@ -338,13 +356,15 @@ float read_batt(void)
 	#endif
 
 	// take it als mV
-	#if defined( NRF52_SERIES)
+	#if defined(NRF52_SERIES)
 		raw = raw * 1.25717;
 	#elif defined(BOARD_TBEAM) || defined(BOARD_SX1268)
 		raw = raw * 10.7687;
 	#elif defined(BOARD_HELTEC)
 		raw = raw * 24.80;
 	#elif defined(BOARD_HELTEC_V3)
+		// al done
+	#elif defined(BOARD_E22_S3)
 		// al done
 	#elif defined(BOARD_TLORA_OLV216)
 		raw = raw * 1000.0; // convert to volt
@@ -354,7 +374,7 @@ float read_batt(void)
 		raw = raw * 24.80;
 	#endif
 
-	if(bDEBUG && bDisplayInfo)
+	if(bDisplayCont)
 	{
 		Serial.print("[readBatteryVoltage] raw mV : ");
 		Serial.println(raw);

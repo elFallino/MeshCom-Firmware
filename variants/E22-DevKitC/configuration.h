@@ -62,10 +62,10 @@ definitions for E22 Board
 #define LORA_RST  27
 #define LORA_DIO0 26 // aka BUSY Pin
 #define LORA_DIO1 33
-#define LORA_DIO2 32
+//#define LORA_DIO2 not used
 #define LORA_CS 5
-#define RXEN 14
-#define TXEN 13
+#define E22_RXEN 14
+#define E22_TXEN 13
 #define LED 2
 
 #define I2C_SDA 21
@@ -77,3 +77,6 @@ definitions for E22 Board
 #define SX1268_GPIO LORA_DIO0
 
 #define OneWire_GPIO 25 // getestet OE5HWN
+
+#define GPS_RX_PIN 16
+#define GPS_TX_PIN 17

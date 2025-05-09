@@ -26,6 +26,18 @@
     extern int transmissionState;
 #endif
 
+#ifdef SX1262_E22
+    #include <RadioLib.h>
+    extern SX1262 radio;
+    extern int transmissionState;
+#endif
+
+#ifdef SX1268_E22
+    #include <RadioLib.h>
+    extern SX1268 radio;
+    extern int transmissionState;
+#endif
+
 #if defined(SX1262_V3) || defined(SX1262_E290)
     #include <RadioLib.h>
     extern SX1262 radio;
@@ -76,6 +88,8 @@ void OnRxDone(uint8_t *payload, uint16_t size, int16_t rssi, int8_t snr)
     //Serial.printf("Start OnRxDone:<%-20.20s> %i\n", payload, size);
 
     bNewLine=false;
+
+    bLED_GREEN = true;
 
     if(payload[0] == 0x41)
     {
@@ -336,7 +350,8 @@ void OnRxDone(uint8_t *payload, uint16_t size, int16_t rssi, int8_t snr)
                         bNewLine=true;
                     }
             
-                    own_msg_id[icheck][4]=0x01; // 0x01 HEARD
+                    if(own_msg_id[icheck][4] != 0x02)
+                        own_msg_id[icheck][4]=0x01; // 0x01 HEARD
                 }
             }
             else
@@ -429,7 +444,7 @@ void OnRxDone(uint8_t *payload, uint16_t size, int16_t rssi, int8_t snr)
                                     print_buff[2]=(msg_counter >> 8) & 0xFF;
                                     print_buff[3]=(msg_counter >> 16) & 0xFF;
                                     print_buff[4]=(msg_counter >> 24) & 0xFF;
-                                    print_buff[5]=0x01;  // ACK
+                                    print_buff[5]=0x02;  // ACK
                                     print_buff[6]=0x00;
                                     
                                     if(bDisplayInfo)
@@ -905,6 +920,8 @@ bool doTX()
                     #if defined BOARD_RAK4630
                         Radio.Send(lora_tx_buffer, sendlng);
                     #else
+                        if(!bLED_GREEN)
+                            bLED_RED = true;
                         transmissionState = radio.startTransmit(lora_tx_buffer, sendlng);
                     #endif
 

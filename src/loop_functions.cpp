@@ -19,6 +19,14 @@ extern TinyGPSPlus tinyGPSPLus;
 
 int BOARD_HARDWARE = MODUL_HARDWARE;
 
+bool bRadio=false;
+
+bool bLED_RED=false;
+bool bLED_BLUE=false;
+bool bLED_GREEN=false;
+bool bLED_ORANGE=false;
+bool bLED_CLEAR=true;
+
 extern unsigned long rebootAuto;
 
 uint32_t heap = 0;
@@ -47,6 +55,8 @@ unsigned long DisplayOffWait = 0;
 bool bDisplayTrack = false;
 bool bGPSON = false;
 bool bBMPON = false;
+bool bBMP3ON = false;
+bool bAHT20ON = false;
 bool bBMEON = false;
 bool bBME680ON = false;
 bool bMCU811ON = false;
@@ -63,7 +73,9 @@ bool bONEWIRE = false;
 bool bLPS33 = false;
 
 bool bme680_found = false;
-bool bmx_found = false;;
+bool bmx_found = false;
+bool bmp3_found = false;
+bool aht20_found =false;
 bool mcu811_found = false;
 bool one_found = false;
 bool ina226_found = false;
@@ -93,6 +105,8 @@ uint8_t iButtonPin = 0;
 
 bool bAnalogCheck = false;
 float fAnalogValue = 0.0;
+
+float fBattFaktor = 0.0;
 
 int iInitDisplay = 0;
 int iDisplayChange = 0;
@@ -155,6 +169,9 @@ U8G2 *u8g2;
 #elif defined(BOARD_TBEAM_V3)
     U8G2_SH1106_128X64_NONAME_1_SW_I2C u8g2_1(U8G2_R0, 18, 17, U8X8_PIN_NONE);
     U8G2_SSD1306_128X64_NONAME_1_SW_I2C u8g2_2(U8G2_R0, 18, 17, U8X8_PIN_NONE);
+#elif defined(BOARD_E22_S3)
+    U8G2_SH1106_128X64_NONAME_1_SW_I2C u8g2_1(U8G2_R0, I2C_SCL, I2C_SDA, U8X8_PIN_NONE);
+    U8G2_SSD1306_128X64_NONAME_1_SW_I2C u8g2_2(U8G2_R0, I2C_SCL, I2C_SDA, U8X8_PIN_NONE);
 #else
     U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2_1(U8G2_R0, SCL, SDA, U8X8_PIN_NONE);
     U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2_2(U8G2_R0, SCL, SDA, U8X8_PIN_NONE);
@@ -424,7 +441,7 @@ int checkOwnTx(unsigned int msg_id)
             if(bDisplayInfo)
             {
                 Serial.print(getTimeString());
-                Serial.printf(" checkOwnTx:%08X own_msg_id:%08X <%02X%02X%02X%02X>\n", msg_id, own_id, own_msg_id[ilo][3], own_msg_id[ilo][2], own_msg_id[ilo][1], own_msg_id[ilo][0]);
+                Serial.printf(" checkOwnTx:%08X own_msg_id:%08X <%02X%02X%02X%02X> %02X\n", msg_id, own_id, own_msg_id[ilo][3], own_msg_id[ilo][2], own_msg_id[ilo][1], own_msg_id[ilo][0], own_msg_id[ilo][4]);
             }
 
             return ilo;
@@ -1374,7 +1391,7 @@ void checkAnalogValue()
         if(meshcom_settings.node_analog_pin < 0 || meshcom_settings.node_analog_pin > 99)
             ANAGPIO = ANALOG_PIN;
 
-        float raw = (float)(analogReadMilliVolts(ANAGPIO));
+        float raw = (float)(analogRead(ANAGPIO));
         fAnalogValue = raw  * meshcom_settings.node_analog_faktor;
         
         if(bDEBUG && bDisplayInfo)
@@ -2785,7 +2802,7 @@ void SendAckMessage(String dest_call, unsigned int iAckId)
     }
 
     ringBuffer[iWrite][0]=aprsmsg.msg_len;
-    ringBuffer[iWrite][1]=0x00;    // ACK-Status byte 0x00 for retransmission
+    ringBuffer[iWrite][1]=0xFF;    // ACK-Status byte 0xFF for no retransmission
     memcpy(ringBuffer[iWrite]+2, msg_buffer, aprsmsg.msg_len);
     iWrite++;
     if(iWrite >= MAX_RING)

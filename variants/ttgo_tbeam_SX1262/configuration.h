@@ -76,8 +76,6 @@ definitions for TBEAM 1262
 */
 #define LORA_SF 11
 
-#define LED_PIN 4
-
 #define RESET_OLED RST_OLED
 
 #define VEXT_ENABLE Vext // active low, powers the oled display and the lora antenna boost
@@ -103,3 +101,6 @@ definitions for TBEAM 1262
 
 #define I2C_SDA    SDA_PIN
 #define I2C_SCL    SCL_PIN
+
+#define GPS_RX_PIN 34
+#define GPS_TX_PIN 12

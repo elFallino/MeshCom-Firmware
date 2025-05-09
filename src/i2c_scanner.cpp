@@ -16,14 +16,24 @@ String scanI2C()
 
     char cInfo[100] = {0};
 
+    int idw=1;
+
     TwoWire *w = NULL;
+
+    //Serial.printf("[I2C] ... Scanner started\n");
 
     #ifdef BOARD_TBEAM_V3
         Wire.end();
         Wire.begin(I2C_SDA, I2C_SCL);
+        idw=2;
     #endif
 
-    for(int i2=0; i2<2; i2++)
+    #ifdef BOARD_E22_S3
+        Wire.end();
+        Wire.begin(I2C_SDA, I2C_SCL);
+    #endif
+
+    for(int i2=0; i2<idw; i2++)
     {
         if(i2 == 0)
         {
@@ -38,7 +48,6 @@ String scanI2C()
             #endif
         }
 
-        //Serial.printf("[I2C-%i] ... Scanner started\n", i2);
 
         sprintf(cInfo, "[I2C-%i]...start\n", i2);
         strInfo.concat(cInfo);
@@ -86,13 +95,19 @@ String scanI2C()
 
                     //Serial.printf("[OLED]...RESULT: %i\n", buffer[0]);
 
+                    char dtype[5];
+                    snprintf(dtype, sizeof(dtype), "0x%02X", buffer[0]);
+
                     buffer[0] &= 0x0f;        // mask off power on/off bit
                     if(buffer[0] == 0x8 || buffer[0] == 0x0)
-                        strDev="OLED SSD1306";
+                        strDev="OLED SSD1306 ";
                     else
-                        strDev="OLED SH1106";
+                        strDev="OLED SH1106 ";
+                    
+                    strDev.concat(dtype);
                 }
 
+                if(address == 0x38)strDev="AHT20";
                 if(address == 0x40)strDev="INA226";
                 if(address == 0x51)strDev="RTC PCF8563";
                 if(address == 0x57)strDev="[RTC DS3231 EPROM]";
@@ -101,7 +116,7 @@ String scanI2C()
                 if(address == 0x70)strDev="TCA9548A/0";
                 if(address == 0x71)strDev="TCA9548A/1";
                 if(address == 0x76)strDev="BME280/BMP280/BME680";
-                if(address == 0x77)strDev="BME280/BMP280/BME680";
+                if(address == 0x77)strDev="BME280/BMP280/BME680/BMP390";
                 sprintf(cInfo, "[I2C-%i]...0x%02X %s\n", i2, address, strDev.c_str());
                 strInfo.concat(cInfo);
 

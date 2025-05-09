@@ -18,6 +18,8 @@
 
 // Sensors
 #include "bmx280.h"
+#include "bmp390.h"
+#include "aht20.h"
 #include "bme680.h"
 #include "mcu811.h"
 #include "io_functions.h"
@@ -56,6 +58,21 @@
 extern XPowersLibInterface *PMU;
 
 #endif
+
+// NEOPIXEL
+#ifdef LED_PIN
+#include <Adafruit_NeoPixel.h> 
+
+Adafruit_NeoPixel pixels(LED_PIXEL, LED_PIN, NEO_GRB + NEO_KHZ800);
+#define DELAYVAL 100
+
+bool bLED_WEISS=false;
+int iCount_weiss=0;
+
+bool bLED = false;
+
+#endif
+
 
 
 /**
@@ -250,6 +267,26 @@ LLCC68 radio = new Module(LORA_CS, LORA_DIO0, LORA_RST, LORA_DIO1);
 
 #endif
 
+#ifdef SX1262_E22
+    // RadioModule SX1268 
+    // cs - irq - reset - interrupt gpio
+    // If you have RESET of the E22 connected to a GPIO on the ESP you must initialize the GPIO as output and perform a LOW - HIGH cycle, 
+    // otherwise your E22 is in an undefined state. RESET can be connected, but is not a must. IF so, make RESET before INIT!
+
+    SX1262 radio = new Module(SX126x_CS, SX126x_IRQ, SX126x_RST, SX126x_GPIO);
+
+#endif
+
+#ifdef SX1268_E22
+    // RadioModule SX1268 
+    // cs - irq - reset - interrupt gpio
+    // If you have RESET of the E22 connected to a GPIO on the ESP you must initialize the GPIO as output and perform a LOW - HIGH cycle, 
+    // otherwise your E22 is in an undefined state. RESET can be connected, but is not a must. IF so, make RESET before INIT!
+
+    SX1268 radio = new Module(SX126x_CS, SX126x_IRQ, SX126x_RST, SX126x_GPIO);
+
+#endif
+
 #ifdef SX1262_V3
     // RadioModule SX1262
     // cs - irq - reset - interrupt gpio
@@ -299,8 +336,6 @@ unsigned long retransmit_timer = 0;
 // flag to update NTP Time
 unsigned long updateTimeClient = 0;
 
-bool bLED=true;
-
 #if defined(ESP8266) || defined(ESP32)
   ICACHE_RAM_ATTR
 #endif
@@ -309,17 +344,11 @@ void setFlagReceive(void)
     if(bEnableInterruptReceive)
     {
         receiveFlag = true;
-
-        if(bLORADEBUG)
-            Serial.println("receiveFlag");
     }
 
     if(bEnableInterruptTransmit)
     {
         transmittedFlag = true;
-
-        if(bLORADEBUG)
-            Serial.println("transmittedFlag");
     }
 }
 
@@ -331,17 +360,11 @@ void setFlagSent(void)
     if(bEnableInterruptReceive)
     {
         receiveFlag = true;
-
-        if(bLORADEBUG)
-            Serial.println("receiveFlag");
     }
 
     if(bEnableInterruptTransmit)
     {
         transmittedFlag = true;
-
-        if(bLORADEBUG)
-            Serial.println("transmittedFlag");
     }
 }
 
@@ -364,6 +387,7 @@ uint8_t dmac[6] = {0};
 unsigned long gps_refresh_timer = 0;
 unsigned long softser_refresh_timer = 0;
 unsigned long analog_refresh_timer = 0;
+unsigned long rtc_refresh_timer = 0;
 
 bool is_new_packet(uint8_t compBuffer[4]);     // switch if we have a packet received we never saw before RcvBuffer[12] changes, rest is same
 void checkSerialCommand(void);
@@ -419,7 +443,7 @@ void esp32setup()
     Serial.println("============");
 
     heap = ESP.getFreeHeap();
-    Serial.printf("[HEAP]...%d\n", heap);
+    Serial.printf("[HEAP]...%d (free)\n", heap);
 
     initDisplay();
 
@@ -446,7 +470,7 @@ void esp32setup()
     bBLElong = meshcom_settings.node_sset & 0x0800;
     bGATEWAY =  meshcom_settings.node_sset & 0x1000;
     bEXTUDP =  meshcom_settings.node_sset & 0x2000;
-    //bEXTSER =  meshcom_settings.node_sset & 0x4000; // frei
+    bDisplayCont = meshcom_settings.node_sset & 0x4000;
 
     bONEWIRE =  meshcom_settings.node_sset2 & 0x0001;
     bLPS33 =  meshcom_settings.node_sset2 & 0x0002;
@@ -466,6 +490,8 @@ void esp32setup()
     bNoMSGtoALL =  meshcom_settings.node_sset3 & 0x0002;
     bBLEDEBUG = meshcom_settings.node_sset3 & 0x0004;
     bAnalogCheck = meshcom_settings.node_sset3 & 0x0008;
+    bBMP3ON =  meshcom_settings.node_sset3 & 0x0010;
+    bAHT20ON =  meshcom_settings.node_sset3 & 0x0020;
 
     memset(meshcom_settings.node_update, 0x00, sizeof(meshcom_settings.node_update));
 
@@ -509,9 +535,19 @@ void esp32setup()
     meshcom_settings.max_hop_text = MAX_HOP_TEXT_DEFAULT;
     meshcom_settings.max_hop_pos = MAX_HOP_POS_DEFAULT;
 
+    #if defined(BOARD_E22_S3)
+        fBattFaktor = ADC_MULTIPLIER;   // default
+        if(meshcom_settings.node_analog_batt_faktor > 0.0)
+            fBattFaktor = meshcom_settings.node_analog_batt_faktor;
+    #endif
+
     // Initialize battery reading
 	init_batt();
 
+    #ifdef LED_PIN
+        pixels.begin();
+        Serial.println("[INIT]...NEOPIXEL set");
+    #endif
 
     #ifndef ENABLE_SOFTSER
         bSOFTSERON=false;
@@ -578,15 +614,23 @@ void esp32setup()
         bSETGPS_POWER=true;
     #endif
 
-    #ifdef BOARD_TBEAM_V3
+    #ifdef GPS_L76K
         setupPMU(bSETGPS_POWER);
-        setupL76KGPS();
+        beginGPS();
     #else
         setupPMU(bSETGPS_POWER);
     #endif
 
     #if defined(ENABLE_BMX280)
         setupBMX280(true);
+    #endif
+
+    #if defined(ENABLE_BMP390)
+        setupBMP390(true);
+    #endif
+
+    #if defined(ENABLE_AHT20)
+        setupAHT20(true);
     #endif
 
     #if defined(ENABLE_MC811)
@@ -630,7 +674,7 @@ void esp32setup()
 
     initButtonPin();
     
-    Serial.printf("[INIT]..._GW_ID: %08X\n", _GW_ID);
+    Serial.printf("[INIT].._GW_ID: %08X\n", _GW_ID);
 
     ////////////////////////////////////////////////////////////////////
     // Initialize time
@@ -645,20 +689,21 @@ void esp32setup()
     //
     ////////////////////////////////////////////////////////////////////
 
-#if defined(BOARD_E22) || defined(BOARD_E220)
-    // if RESET Pin is connected
-    pinMode(LORA_RST, PULLUP);
-    digitalWrite(LORA_RST, LOW);
-    delay(200);
-    digitalWrite(LORA_RST, HIGH);
+    #if defined(BOARD_E22) || defined(BOARD_E220)  || defined(BOARD_E22_S3)
+        // if RESET Pin is connected
+        pinMode(LORA_RST, PULLUP);
+        digitalWrite(LORA_RST, LOW);
+        delay(200);
+        digitalWrite(LORA_RST, HIGH);
 
-    // we have TXEN and RXEN Pin connected
-    radio.setRfSwitchPins(RXEN, TXEN);
-#endif
+        // we have TXEN and RXEN Pin connected
+        radio.setRfSwitchPins(E22_RXEN, E22_TXEN);
+    #endif
 
     startDisplay((char*)"...starting now", (char*)"@by icssw.org", (char*)"OE1KBC, OE1KFR");
 
-    bool bRadio=false;
+    //LORA CHIP present
+    bRadio = false;
 
     //TEST #ifndef BOARD_E290
 
@@ -682,6 +727,14 @@ void esp32setup()
     Serial.print(F("[LoRa]...SX1262 V3 chip"));
     #endif
     
+    #ifdef SX1262_E22
+    Serial.print(F("[LoRa]...SX1262 V3 chip"));
+    #endif
+
+    #ifdef SX1268_E22
+    Serial.print(F("[LoRa]...SX1268 V3 chip"));
+    #endif
+
     #ifdef SX1262_E290
     Serial.print(F("[LoRa]...SX1262 E290 chip"));
     #endif
@@ -691,7 +744,7 @@ void esp32setup()
     int state = RADIOLIB_ERR_UNKNOWN;
     
     #if defined(BOARD_E220)
-        state = radio.begin(434.0F, 125.0F, 9, 7, SYNC_WORD_SX127x, 10, LORA_PREAMBLE_LENGTH, /*float tcxoVoltage = 0*/ 0, /*bool useRegulatorLDO = false*/ false);
+        state = radio.begin(434.0F, 125.0F, 9, 7, SYNC_WORD_SX127x, 10, LORA_PREAMBLE_LENGTH, /*float tcxoVoltage = 0*/ 1.6F, /*bool useRegulatorLDO = false*/ false);
     #else
         state = radio.begin();
     #endif
@@ -712,18 +765,18 @@ void esp32setup()
         bRadio = false; // no detailed setting
     #endif
 
+    // > 4.34w we use EU8 instead of EU
+    if(meshcom_settings.node_country == 0)
+        meshcom_settings.node_country = 8;
+
+    lora_setcountry(meshcom_settings.node_country);
+
     // you can also change the settings at runtime
     // and check if the configuration was changed successfully
     if(bRadio)
     {
-        // 4.34w we use EU8 instead of EU
-        if(meshcom_settings.node_country == 0)
-            meshcom_settings.node_country = 8;
-
-        lora_setcountry(meshcom_settings.node_country);
-
         // set boosted gain
-        #if defined(SX1262_V3) || defined(SX1262_E290) || defined(SX1262X) || defined(SX126X)
+        #if defined(SX1262_V3) || defined(SX126x_V3) || defined(SX1262_E290) || defined(SX1262X) || defined(SX126X)
         Serial.printf("[LoRa]...RX_BOOSTED_GAIN: %d\n", (meshcom_settings.node_sset2 &  0x0800) == 0x0800);
         if (radio.setRxBoostedGainMode(meshcom_settings.node_sset2 & 0x0800)  != RADIOLIB_ERR_NONE ) {
             Serial.println(F("Boosted Gain is not available for this module!"));
@@ -856,8 +909,8 @@ void esp32setup()
 
         #endif
 
-        // setup for SX126x Radios
-        #if defined(SX126X) || defined(SX1262X)
+        // setup for SX126x, 1268_V3 Radios
+        #if defined(SX126X) || defined(SX126x_V3) || defined(SX1262X)
         // set the function that will be called
         // when LoRa preamble is not detected within CAD timeout period
         // or when a packet is received
@@ -871,7 +924,7 @@ void esp32setup()
         // radio.setDio1Action(setFlagDetected, RISING);
 
         // start scanning the channel
-        Serial.print(F("[LoRa] Starting to listen ... "));
+        Serial.print(F("[LoRa]...Starting to listen ... "));
         state = radio.startReceive();
         if (state == RADIOLIB_ERR_NONE)
         {
@@ -914,7 +967,7 @@ void esp32setup()
                 Serial.println(state);
             }        
     
-            // enablee CRC
+            // enable CRC
             if (radio.setCRC(2) == RADIOLIB_ERR_INVALID_CRC_CONFIGURATION)
             {
                 Serial.println(F("Selected CRC is invalid for this module!"));
@@ -1099,218 +1152,119 @@ void esp32_write_ble(uint8_t confBuff[300], uint8_t conf_len)
 
 void esp32loop()
 {
+    #ifdef LED_PIN
+        if(bLED_GREEN || bLED_RED || bLED_BLUE || bLED_ORANGE || bLED_WEISS || bLED_CLEAR)
+        {
+            pixels.clear();
+
+            for(int i=0; i<LED_PIXEL; i++)
+            {
+                if(bLED_GREEN)
+                    pixels.setPixelColor(i, pixels.Color(50, 0, 0));
+                else
+                if(bLED_RED)
+                    pixels.setPixelColor(i, pixels.Color(0, 50, 0));
+                else
+                if(bLED_BLUE)
+                    pixels.setPixelColor(i, pixels.Color(0, 0, 50));
+                else
+                if(bLED_ORANGE)
+                    pixels.setPixelColor(i, pixels.Color(50, 25, 0));
+                else
+                if(bLED_WEISS)
+                    pixels.setPixelColor(i, pixels.Color(50, 50, 50));
+                else
+                if(bLED_CLEAR)
+                    pixels.setPixelColor(i, pixels.Color(0, 0, 0));
+
+                bLED_RED=false;
+                bLED_GREEN=false;
+                bLED_BLUE=false;
+                bLED_ORANGE=false;
+                bLED_WEISS=false;
+
+                bLED_CLEAR=!bLED_CLEAR;
+            }
+
+            pixels.setBrightness(25);
+
+            pixels.show();
+
+            delay(DELAYVAL);
+        }
+        else
+        {
+            iCount_weiss++;
+            if(iCount_weiss > 120)
+            {
+                bLED_WEISS=true;
+                iCount_weiss=0;
+            }
+        }
+    #endif
+
     #ifdef BOARD_LED
+        // TODO
         if(bLED)
             digitalWrite(BOARD_LED, HIGH);
         else
             digitalWrite(BOARD_LED, LOW);
-
         bLED = !bLED;
     #endif
 
-    if(inoReceiveTimeOutTime > 0)
+    // LoRa-Chip found
+    if(bRadio)
     {
-        // Timeout RECEIVE_TIMEOUT
-        if((inoReceiveTimeOutTime + (60 * 6 * 1000)) < millis())  // 6 Minuten
-        {
-            inoReceiveTimeOutTime=0;
+        if(bLORADEBUG && receiveFlag)
+            Serial.println("receiveflag");
 
-            if(bLORADEBUG)
+        if(bLORADEBUG && transmittedFlag)
+            Serial.println("transmittedFlag");
+
+        if(inoReceiveTimeOutTime > 0)
+        {
+            // Timeout RECEIVE_TIMEOUT
+            if((inoReceiveTimeOutTime + (60 * 6 * 1000)) < millis())  // 6 Minuten
             {
-                Serial.print(getTimeString());
-                Serial.println(" [LoRa]...Receive Timeout > 6.5 min. just for info");
-            }
+                inoReceiveTimeOutTime=0;
 
-            /*
-            char tmessage[50];
-            sprintf(tmessage, ":%s", (char*)"test restart LoRa-Loop");
-
-            sendMessage(tmessage, strlen(tmessage));
-            */
-        }
-    }
-
-    if(!bGATEWAY)
-    {
-        if ((retransmit_timer + (1000 * 2)) < millis())   // repeat 2 seconds
-        {
-            updateRetransmissionStatus();
-
-            retransmit_timer = millis();
-        }
-    }
-
-    if(iReceiveTimeOutTime > 0)
-    {
-        // Timeout RECEIVE_TIMEOUT
-        if((iReceiveTimeOutTime + RECEIVE_TIMEOUT) < millis())
-        {
-            iReceiveTimeOutTime=0;
-
-            // clear Receive Interrupt
-            bEnableInterruptReceive = false; //KBC 0801
-            radio.clearPacketReceivedAction(); // KBC 0801
-
-            // clear Transmit Interrupt
-            bEnableInterruptTransmit = false; // KBC 0801
-            radio.clearPacketSentAction();  //KBC 0801
-
-            // set Receive Interupt
-            bEnableInterruptReceive = true; //KBC 0801
-            radio.setPacketReceivedAction(setFlagReceive); //KBC 0801
-
-            int state = radio.startReceive();
-            if (state == RADIOLIB_ERR_NONE)
-            {
                 if(bLORADEBUG)
                 {
                     Serial.print(getTimeString());
-                    Serial.println(" [LoRa]...Receive Timeout, startReceive again with sucess");
+                    Serial.println(" [LoRa]...Receive Timeout > 6.5 min. just for info");
                 }
+
+                /*
+                char tmessage[50];
+                sprintf(tmessage, ":%s", (char*)"test restart LoRa-Loop");
+
+                sendMessage(tmessage, strlen(tmessage));
+                */
             }
-            else
-            {
-                if(bLORADEBUG)
-                {
-                    Serial.print(getTimeString());
-                    Serial.print(" [LoRa]...Receive Timeout, startReceive again with error = ");
-                    Serial.println(state);
-                }
-            }        
         }
-    }
-    
-    if(receiveFlag || transmittedFlag)
-    {
-        int state = RADIOLIB_ERR_NONE;
 
-        // check ongoing reception
-        if(receiveFlag)
+        if(!bGATEWAY)
         {
-            // reset flags first
-            bEnableInterruptReceive = false;
-            receiveFlag = false;
+            if ((retransmit_timer + (1000 * 2)) < millis())   // repeat 2 seconds
+            {
+                updateRetransmissionStatus();
 
-            // DIO triggered while reception is ongoing
-            // that means we got a packet
-
-            checkRX();
-
-            // clear Receive Interrupt
-            bEnableInterruptReceive = false; // KBC 0801
-            radio.clearPacketReceivedAction(); // KBC 0801
-
-            // clear Transmit Interrupt
-            bEnableInterruptTransmit = false; // KBC 0801
-            radio.clearPacketSentAction();  //KBC 0801
-
-            // set Receive Interupt
-            bEnableInterruptReceive = true; //KBC 0801
-            radio.setPacketReceivedAction(setFlagReceive); //KBC 0801
-
-            inoReceiveTimeOutTime=millis();
+                retransmit_timer = millis();
+            }
         }
-        else
-        if(transmittedFlag)
+
+        if(iReceiveTimeOutTime > 0)
         {
-            // reset flags first
-            bEnableInterruptTransmit = false;
-            bEnableInterruptReceive = false;
-
-            transmittedFlag = false;
-
-            if (transmissionState == RADIOLIB_ERR_NONE)
+            // Timeout RECEIVE_TIMEOUT
+            if((iReceiveTimeOutTime + RECEIVE_TIMEOUT) < millis())
             {
-                // packet was successfully sent
-                if(bLORADEBUG)
-                    Serial.println(F("transmission finished!"));
-            }
-            else
-            {
-                if(bLORADEBUG)
-                {
-                    Serial.print(F("failed, code <3> "));
-                    Serial.println(transmissionState);
-                }
-            }
+                iReceiveTimeOutTime=0;
 
-            // clean up after transmission is finished
-            // this will ensure transmitter is disabled,
-            // RF switch is powered down etc.
-            radio.finishTransmit();
-
-            #ifndef BOARD_TLORA_OLV216
-            // reset MeshCom now
-            if(bSetLoRaAPRS)
-            {
-                lora_setchip_meshcom();
-                bSetLoRaAPRS = false;
-            }
-            #endif
-
-            OnTxDone();
-
-            // clear Transmit Interrupt
-            bEnableInterruptTransmit = false; // KBC 0801
-            radio.clearPacketSentAction();  //KBC 0801
-
-            // clear Receive Interrupt
-            bEnableInterruptReceive = false; // KBC 0801
-            radio.clearPacketReceivedAction();  //KBC 0801
-
-            // set Receive Interupt
-            bEnableInterruptReceive = true;
-            radio.setPacketReceivedAction(setFlagReceive); //KBC 0801
-
-            int state = radio.startReceive();
-
-            if (state != RADIOLIB_ERR_NONE)
-            {
-                if(bLORADEBUG)
-                {
-                    Serial.print(F("[LoRa]...Starting to listen again (1)... "));
-                    Serial.print(F("failed, code "));
-                    Serial.println(state);
-                }
-            }        
-
-            inoReceiveTimeOutTime=millis();
-
-            iReceiveTimeOutTime = millis(); // start to wait for next transmit
-        }
-    }
-
-    // Check transmit now
-    if(iReceiveTimeOutTime == 0 && !bEnableInterruptTransmit)
-    {
-        // channel is free
-        // nothing was detected
-        // do not print anything, it just spams the console
-        if (iWrite != iRead)
-        {
-            // save transmission state between loops
-            cmd_counter=0;
-            tx_waiting=true;
-
-            // clear Receive Interrupt
-            bEnableInterruptReceive = false;
-            radio.clearPacketReceivedAction();  //KBC 0801
-
-            // set Transmit Interupt
-            bEnableInterruptTransmit = true; //KBC 0801
-            radio.setPacketSentAction(setFlagSent); //KBC 0801
-
-            if(doTX())
-            {
-                //KBC 0801 bEnableInterruptTransmit = true;
-            }
-            else
-            {
-                if(bLORADEBUG)
-                    Serial.print(F("[LoRa]...Starting to listen again... "));
+                // clear Receive Interrupt
+                bEnableInterruptReceive = false; //KBC 0801
+                radio.clearPacketReceivedAction(); // KBC 0801
 
                 // clear Transmit Interrupt
-                bEnableInterruptReceive = false; // KBC 0801
                 bEnableInterruptTransmit = false; // KBC 0801
                 radio.clearPacketSentAction();  //KBC 0801
 
@@ -1322,57 +1276,186 @@ void esp32loop()
                 if (state == RADIOLIB_ERR_NONE)
                 {
                     if(bLORADEBUG)
-                        Serial.println(F("success!"));
+                    {
+                        Serial.print(getTimeString());
+                        Serial.println(" [LoRa]...Receive Timeout, startReceive again with sucess");
+                    }
                 }
                 else
                 {
                     if(bLORADEBUG)
                     {
-                        Serial.print(F("failed, code "));
+                        Serial.print(getTimeString());
+                        Serial.print(" [LoRa]...Receive Timeout, startReceive again with error = ");
                         Serial.println(state);
                     }
                 }        
             }
         }
-    }
-    
+        
+        if(receiveFlag || transmittedFlag)
+        {
+            int state = RADIOLIB_ERR_NONE;
+
+            // check ongoing reception
+            if(receiveFlag)
+            {
+                // reset flags first
+                bEnableInterruptReceive = false;
+                receiveFlag = false;
+
+                // DIO triggered while reception is ongoing
+                // that means we got a packet
+
+                checkRX();
+
+                // clear Receive Interrupt
+                bEnableInterruptReceive = false; // KBC 0801
+                radio.clearPacketReceivedAction(); // KBC 0801
+
+                // clear Transmit Interrupt
+                bEnableInterruptTransmit = false; // KBC 0801
+                radio.clearPacketSentAction();  //KBC 0801
+
+                // set Receive Interupt
+                bEnableInterruptReceive = true; //KBC 0801
+                radio.setPacketReceivedAction(setFlagReceive); //KBC 0801
+
+                inoReceiveTimeOutTime=millis();
+            }
+            else
+            if(transmittedFlag)
+            {
+                // reset flags first
+                bEnableInterruptTransmit = false;
+                bEnableInterruptReceive = false;
+
+                transmittedFlag = false;
+
+                if (transmissionState == RADIOLIB_ERR_NONE)
+                {
+                    // packet was successfully sent
+                    if(bLORADEBUG)
+                        Serial.println(F("transmission finished!"));
+                }
+                else
+                {
+                    if(bLORADEBUG)
+                    {
+                        Serial.print(F("failed, code <3> "));
+                        Serial.println(transmissionState);
+                    }
+                }
+
+                // clean up after transmission is finished
+                // this will ensure transmitter is disabled,
+                // RF switch is powered down etc.
+                radio.finishTransmit();
+
+                #ifndef BOARD_TLORA_OLV216
+                // reset MeshCom now
+                if(bSetLoRaAPRS)
+                {
+                    lora_setchip_meshcom();
+                    bSetLoRaAPRS = false;
+                }
+                #endif
+
+                OnTxDone();
+
+                // clear Transmit Interrupt
+                bEnableInterruptTransmit = false; // KBC 0801
+                radio.clearPacketSentAction();  //KBC 0801
+
+                // clear Receive Interrupt
+                bEnableInterruptReceive = false; // KBC 0801
+                radio.clearPacketReceivedAction();  //KBC 0801
+
+                // set Receive Interupt
+                bEnableInterruptReceive = true;
+                radio.setPacketReceivedAction(setFlagReceive); //KBC 0801
+
+                int state = radio.startReceive();
+
+                if (state != RADIOLIB_ERR_NONE)
+                {
+                    if(bLORADEBUG)
+                    {
+                        Serial.print(F("[LoRa]...Starting to listen again (1)... "));
+                        Serial.print(F("failed, code "));
+                        Serial.println(state);
+                    }
+                }        
+
+                inoReceiveTimeOutTime=millis();
+
+                iReceiveTimeOutTime = millis(); // start to wait for next transmit
+            }
+        }
+
+        // Check transmit now
+        if(iReceiveTimeOutTime == 0 && !bEnableInterruptTransmit)
+        {
+            // channel is free
+            // nothing was detected
+            // do not print anything, it just spams the console
+            if (iWrite != iRead)
+            {
+                // save transmission state between loops
+                cmd_counter=0;
+                tx_waiting=true;
+
+                // clear Receive Interrupt
+                bEnableInterruptReceive = false;
+                radio.clearPacketReceivedAction();  //KBC 0801
+
+                // set Transmit Interupt
+                bEnableInterruptTransmit = true; //KBC 0801
+                radio.setPacketSentAction(setFlagSent); //KBC 0801
+
+                if(doTX())
+                {
+                    //KBC 0801 bEnableInterruptTransmit = true;
+                }
+                else
+                {
+                    if(bLORADEBUG)
+                        Serial.print(F("[LoRa]...Starting to listen again... "));
+
+                    // clear Transmit Interrupt
+                    bEnableInterruptReceive = false; // KBC 0801
+                    bEnableInterruptTransmit = false; // KBC 0801
+                    radio.clearPacketSentAction();  //KBC 0801
+
+                    // set Receive Interupt
+                    bEnableInterruptReceive = true; //KBC 0801
+                    radio.setPacketReceivedAction(setFlagReceive); //KBC 0801
+
+                    int state = radio.startReceive();
+                    if (state == RADIOLIB_ERR_NONE)
+                    {
+                        if(bLORADEBUG)
+                            Serial.println(F("success!"));
+                    }
+                    else
+                    {
+                        if(bLORADEBUG)
+                        {
+                            Serial.print(F("failed, code "));
+                            Serial.println(state);
+                        }
+                    }        
+                }
+            }
+        }
+    } // bRadio active
+
     // get RTC Now
     // RTC hat Vorrang zu Zeit via MeshCom-Server
     bool bMyClock = true;
 
     // !posinfo_fix && !bNTPDateTimeValid
-
-    if(bRTCON)
-    {
-        bMyClock = false;
-
-        loopRTC();
-
-        if(!posinfo_fix) // GPS hat Vorang zur RTC
-        {
-            DateTime utc = getRTCNow();
-
-            DateTime now (utc + TimeSpan(meshcom_settings.node_utcoff * 60 * 60));
-
-            uint16_t Year = now.year();
-            uint16_t Month = now.month();
-            uint16_t Day = now.day();
-
-            uint16_t Hour = now.hour();
-            uint16_t Minute = now.minute();
-            uint16_t Second = now.second();
-
-            // check valid Date & Time
-            if(Year > 2023)
-            {
-                MyClock.setCurrentTime(meshcom_settings.node_utcoff, Year, Month, Day, Hour, Minute, Second);
-                snprintf(cTimeSource, sizeof(cTimeSource), (char*)"RTC");
-
-                bMyClock = true;
-            }
-        }
-    }
-    else
+    // Time NTP
     if(meshcom_settings.node_hasIPaddress)
     {
         strTime = "none";
@@ -1410,6 +1493,48 @@ void esp32loop()
 
     }
     else
+    if(bRTCON)
+    {
+        bMyClock = false;
+
+        loopRTC();
+
+        if(posinfo_fix) // GPS hat Vorang zur RTC und setzt RTC
+        {
+            if((rtc_refresh_timer + 60000) > millis())
+            {
+                //only every minute
+                setRTCNow(meshcom_settings.node_date_year, meshcom_settings.node_date_month, meshcom_settings.node_date_day, meshcom_settings.node_date_hour, meshcom_settings.node_date_minute, meshcom_settings.node_date_second);
+                rtc_refresh_timer = millis();
+            }
+        }
+        else
+        {
+            DateTime utc = getRTCNow();
+
+            DateTime now (utc + TimeSpan(meshcom_settings.node_utcoff * 60 * 60));
+
+            uint16_t Year = now.year();
+            uint16_t Month = now.month();
+            uint16_t Day = now.day();
+
+            uint16_t Hour = now.hour();
+            uint16_t Minute = now.minute();
+            uint16_t Second = now.second();
+
+            //Serial.printf("%04i.%02i.%02i %02i:%02i:%02i\n", Year, Month, Day, Hour, Minute, Second);
+
+            // check valid Date & Time
+            if(Year > 2013)
+            {
+                MyClock.setCurrentTime(0.0, Year, Month, Day, Hour, Minute, Second);
+                snprintf(cTimeSource, sizeof(cTimeSource), (char*)"RTC");
+
+                bMyClock = true;
+            }
+        }
+    }
+    else
     {
         bNTPDateTimeValid = false;
     }
@@ -1435,6 +1560,17 @@ void esp32loop()
         {
             snprintf(meshcom_settings.node_update, sizeof(meshcom_settings.node_update), "%04i-%02i-%02i %02i:%02i:%02i",
              meshcom_settings.node_date_year, meshcom_settings.node_date_month, meshcom_settings.node_date_day, meshcom_settings.node_date_hour, meshcom_settings.node_date_minute, meshcom_settings.node_date_second);
+
+            if(bRTCON && bNTPDateTimeValid) // NTP hat Vorang zur RTC und setzt RTC
+            {
+                if((rtc_refresh_timer + 60000) > millis())
+                {
+                    //only every minute
+                    setRTCNow(meshcom_settings.node_date_year, meshcom_settings.node_date_month, meshcom_settings.node_date_day, meshcom_settings.node_date_hour, meshcom_settings.node_date_minute, meshcom_settings.node_date_second);
+
+                    rtc_refresh_timer = millis();
+                }
+            }
         }
     }
 
@@ -1584,24 +1720,45 @@ void esp32loop()
         }
 
         #ifdef ENABLE_GPS
-            
-            #ifdef BOARD_TBEAM_V3
-                unsigned int igps = loopL76KGPS();
-            #else
-                unsigned int igps = (unsigned int)getGPS();
-            #endif
 
-            if(igps > 0)
-                posinfo_interval = igps;
+        unsigned int igps=0;
+            
+        if(!bGPSON)
+        {
+            if(meshcom_settings.node_postime > 0)
+            {
+                igps = (unsigned int)meshcom_settings.node_postime;
+            }
             else
             {
-                no_gps_reset_counter++;
-                if(no_gps_reset_counter > 10)
-                {
-                    posinfo_interval = POSINFO_INTERVAL;
-                    no_gps_reset_counter = 0;
-                }
+                posinfo_fix = false;
+                posinfo_satcount = 0;
+                posinfo_hdop = 0;
+        
+                igps =  POSINFO_INTERVAL;
             }
+        }
+        else
+        {
+            #ifdef GPS_L76K
+                igps = loopL76KGPS();
+            #else
+                igps = getGPS();
+            #endif
+        }
+
+        if(igps > 0)
+            posinfo_interval = igps;
+        else
+        {
+            no_gps_reset_counter++;
+            if(no_gps_reset_counter > 10)
+            {
+                posinfo_interval = POSINFO_INTERVAL;
+                no_gps_reset_counter = 0;
+            }
+        }
+
         #endif
 
         gps_refresh_timer = millis();
@@ -1736,7 +1893,7 @@ void esp32loop()
                     // no BATT
                     if(global_proz < 0)
                     {
-                        if(bDEBUG && bDisplayInfo)
+                        if(bDisplayCont)
                             Serial.println("[readBatteryVoltage]...no battery is connected");
                             
                         global_batt = (float)PMU->getVbusVoltage();
@@ -1754,13 +1911,13 @@ void esp32loop()
                     global_proz = 0;
                 }
 
-                if(bDEBUG && bDisplayInfo)
+                if(bDisplayCont)
                     Serial.printf("[readBatteryVoltage]...PMU.volt %.1f PMU.proz %i %i\n", global_batt, global_proz, pmu_proz);
             #else
                 global_batt = read_batt();
                 global_proz = mv_to_percent(global_batt);
                 
-                if(bDEBUG && bDisplayInfo)
+                if(bDisplayCont)
                 {
             		Serial.print("[readBatteryVoltage]...");
                     Serial.printf("volt %.1f proz %i\n", global_batt, global_proz);
@@ -1770,7 +1927,7 @@ void esp32loop()
             if(bDisplayCont)
             {
                 heap = ESP.getFreeHeap();
-                Serial.printf("[HEAP]...%d\n", heap);
+                Serial.printf("[HEAP]...%d (free)\n", heap);
             }
 
             BattTimeWait = millis();
@@ -1822,6 +1979,31 @@ void esp32loop()
                 }
 
             BMXTimeWait = millis(); // wait for next messurement
+        }
+    }
+    #endif
+
+    // read BMP390/AHT20 Sensor
+    #if defined(ENABLE_BMP390)
+    if((bBMP3ON && bmp3_found) || (bAHT20ON && aht20_found))
+    {
+        if ((BMP3TimeWait + 60000) < millis())   // 60 sec
+        {
+            if(loopBMP390())
+            {
+                meshcom_settings.node_press = getPress3();
+                meshcom_settings.node_temp = getTemp3();
+                meshcom_settings.node_press_asl = getPressASL3();
+                meshcom_settings.node_press_alt = getAltitude3();
+            }
+
+            #if defined(ENABLE_AHT20)
+                if(loopAHT20())
+                {
+                }
+            #endif
+
+            BMP3TimeWait = millis(); // wait for next messurement
         }
     }
     #endif
@@ -2002,6 +2184,9 @@ int checkRX(void)
     //       See example ReceiveInterrupt for details
     //       on non-blocking reception method.
 
+    if(!bRadio)
+        return -1;
+        
     if(is_receiving)    // receive in action
         return -1;
 

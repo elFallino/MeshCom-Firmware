@@ -29,6 +29,9 @@ definitions for HELTEC E290
 
 #define WAIT_TX 5         // ticks waiting after Lora TX in doTX()
 
+#define GPS_RX_PIN 47
+#define GPS_TX_PIN 48
+
 // ESP32
 /** 
  * Radiolib Object Module
@@ -74,8 +77,6 @@ definitions for HELTEC E290
 
 #define SDA_PIN 39
 #define SCL_PIN 38
-
-//#define LED_PIN 25
 
 //#define RESET_OLED RST_OLED
 #define I2C_SDA SDA_PIN // I2C pins for this board
