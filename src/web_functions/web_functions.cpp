@@ -1366,9 +1366,7 @@ void sub_page_info()
     web_client.printf("<tr><td>Bandwidth</td><td>%.0f kHz</td></tr>\n", getBW());
     web_client.printf("<tr><td>Spreading Factor (SF)</td><td>%i</td></tr>\n", getSF());
     web_client.printf("<tr><td>Coding Rate (CR)</td><td>%i</td></tr>\n", getCR());
-    #ifdef ESP32
-    web_client.printf("<tr><td>TX Power</td><td>%i dBm (%.2f mW)</td></tr>\n", getPower(), 1000 * pow10f(((float)getPower() - 30) / 10));
-    #endif
+    web_client.printf("<tr><td>TX Power</td><td>%i dBm (%.2f mW)</td></tr>\n", getPower(), 1000 * powf(10, ((float)getPower() - 30) / 10));
 
 #ifndef BOARD_RAK4630
     if (bWIFIAP)
