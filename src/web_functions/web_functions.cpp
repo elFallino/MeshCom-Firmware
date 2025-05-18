@@ -295,6 +295,7 @@ String work_webpage(bool bget_password, int webid)
                     }
                     else if (web_header.indexOf("/?getmessages") >= 0)
                     { // user requested to retrieve the stored messages
+                        send_http_header(200, RESPONSE_TYPE_TEXT);
                         sub_content_messages();
                     }
                     else if (web_header.indexOf("/setparam/") >= 0)
@@ -685,6 +686,7 @@ void deliver_scaffold()
     // this function is an ayncronous loader that is used to update the received messages without re-loading the whole page
     //MIT LOADER-Kreisel   web_client.println("function updateMessages() {document.getElementById(\"messages_panel\").innerHTML=\"<span class=\\\"loader\\\"></span>\";var xhttp = new XMLHttpRequest(); xhttp.onreadystatechange=function(){if(this.readyState==4 && this.status==200){document.getElementById(\"messages_panel\").innerHTML=this.responseText;}};xhttp.open(\"GET\",\"/?getmessages\",true);xhttp.send();};\n");
     web_client.println("function updateMessages() {var xhttp = new XMLHttpRequest(); xhttp.onreadystatechange=function(){if(this.readyState==4 && this.status==200){document.getElementById(\"messages_panel\").innerHTML=this.responseText;}};xhttp.open(\"GET\",\"/?getmessages\",true);xhttp.send();};\n");
+    //web_client.println("function updateMessages() {var xhttp=new XMLHttpRequest();xhttp.onreadystatechange=function(){document.getElementById(\"messages_panel\").innerHTML=this.responseText;};xhttp.open(\"GET\",\"/?getmessages\",true);xhttp.send();};\n");
 
     // this function sends a parameter:value request to the backend
     web_client.println("function setvalue(param,value) {fetch(\"/setparam/?\"+param+\"=\"+value).then(function(response){return response.json();}).then(function(jsonResponse){if(jsonResponse['returncode']==1)alert(\"Value could not be set.\");if(jsonResponse['returncode']==2)alert(\"Parameter unknown to node.\");if(jsonResponse['returncode']>0){loadPage(cpage, csender)}});}\n");
