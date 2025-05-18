@@ -287,10 +287,12 @@ String work_webpage(bool bget_password, int webid)
 
                     if (web_header.indexOf("/callfunction/") >= 0)
                     { // user requested to invoke a function
+                        // ### !!function will generate a HTML header itself
                         call_function(web_header);
                     }
                     else if (web_header.indexOf("/?sendmessage") >= 0)
                     { // user requested to send a message to the mesh
+                        send_http_header(200, RESPONSE_TYPE_TEXT);
                         send_message(web_header);
                     }
                     else if (web_header.indexOf("/?getmessages") >= 0)
@@ -300,10 +302,12 @@ String work_webpage(bool bget_password, int webid)
                     }
                     else if (web_header.indexOf("/setparam/") >= 0)
                     { // user requested to set a parameter
+                        // ### !!function will generate a HTML header itself
                         setparam(web_header);
                     }
                     else if (web_header.indexOf("/getparam/") >= 0)
                     { // user requested to get a parameter
+                        // ### !!function will generate a HTML header itself
                         getparam(web_header);
                     }
                     else if (web_header.indexOf("/?page=setup") >= 0)
@@ -1525,8 +1529,6 @@ void _create_setup_switch_element(const char id[], const char labelText[], const
  */
 void send_message(String web_header)
 {
-    send_http_header(200, RESPONSE_TYPE_TEXT);
-
     if ((web_header.indexOf("&tocall=") >= 0) && (web_header.indexOf("&message=") >= 0))
     { // check if all neccessary parameters are there
         if (web_header.lastIndexOf(" HTTP/1.1") >= 0)
