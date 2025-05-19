@@ -1035,7 +1035,7 @@ void sub_page_setup()
     web_client.println("<div class=\"grid\">");
     web_client.println("<span>Enter manual command:</span>");
     web_client.println("<input type=\"text\" id=\"manualcommand\" maxlength=\"40\" size=\"20\" style=\"width:100%\">");
-    web_client.println("<button onclick=\"setvalue('manualcommand', document.getElementById('manualcommand').value)\" style=\"justify-self:self-end;\">send command</button>");
+    web_client.println("<button onclick=\"setvalue('manualcommand', document.getElementById('manualcommand').value); document.getElementById('manualcommand').value='';\" style=\"justify-self:self-end;\">send command</button>");
     web_client.println("</div></div>");
 
     // Common Settings Section
@@ -1069,7 +1069,7 @@ void sub_page_setup()
     _create_setup_switch_element("gateway", "Gateway", "enable gateway", bGATEWAY);                             // create Switch-Element inclucing Label and Description
 
     web_client.println("<span>Reboot into OTA Updater</span>");
-    web_client.println("<button onclick=\"if(confirm('Node will reboot to OTA Updater, are you sure?') == true)callfunction('otaupdate', '')\"><i class=\"btncheckmark\"></i></button>");
+    web_client.println("<button onclick=\"if(confirm('Node will reboot to OTA Updater, are you sure?') == true){callfunction('otaupdate', '');setTimeout(function(){window.location.reload();},10000);}\"><i class=\"btncheckmark\"></i></button>");
 
     web_client.println("</div></div>");
 
