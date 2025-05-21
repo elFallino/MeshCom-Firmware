@@ -30,6 +30,12 @@ bool setupSOFTSER()
     }
 
 #ifdef ESP32
+    
+    #ifdef GPS_TX_PIN
+        meshcom_settings.node_ss_tx_pin = GPS_RX_PIN;
+        meshcom_settings.node_ss_rx_pin = GPS_TX_PIN;
+    #endif
+
     SOFTSER.begin((uint32_t)meshcom_settings.node_ss_baud, EspSoftwareSerial::SWSERIAL_8N1, (int8_t)meshcom_settings.node_ss_rx_pin, (int8_t)meshcom_settings.node_ss_tx_pin);
     SOFTSER.setTimeout(50);
 #else
@@ -42,13 +48,13 @@ bool setupSOFTSER()
     return true;
 }
 
-bool loopSOFTSER(int ID, int iFunction)
+bool loopSOFTSER(int ID)
 {
     if(!bSOFTSERON)
         return false;
         
     // last query running
-    if(iFunction == 0 && strSOFTSER_BUF.length() > 0)
+    if(softserFunktion == 0 && strSOFTSER_BUF.length() > 0)
         return false;
 
     char cText[100] = {0};
@@ -56,12 +62,14 @@ bool loopSOFTSER(int ID, int iFunction)
     // Pegestandsmesser
     if(ID == 1)
     {
-        if(iFunction == 0)
+        if(softserFunktion == 0)
         {
             snprintf(cText, sizeof(cText), "%s", "/cl/time/get");
+
+            softserFunktion = 1;
         }
         else
-        if(iFunction == 1)
+        if(softserFunktion == 1)
         {
             snprintf(cText, sizeof(cText), "/cl/data/get/%s", strSOFTSER_BUF.substring(6, 20).c_str());
 
@@ -80,15 +88,25 @@ bool loopSOFTSER(int ID, int iFunction)
 
             MyClock.setCurrentTime(meshcom_settings.node_utcoff, year, month, day, hour, minute, second);
 
+            snprintf(cTimeSource, sizeof(cTimeSource), (char*)"SER");
+
+            softserFunktion = 2;
         }
 
         strSOFTSER_BUF = "";
 
-        Serial.println(cText);
+        if(bSOFTSERDEBUG)
+        {
+            Serial.print("[APP]...");
+            Serial.println(cText);
+        }
         
         sendSOFTSER(cText);
 
     }
+
+    if(strSOFTSER_BUF.length() > 1)
+        appSOFTSER(SOFTSER_APP_ID);
 
     return true;
 }
@@ -102,12 +120,13 @@ String strTELE_UNIT="";
 String strTELE_VALUES="";
 String strTELE_DATETIME="";
 String strTELE_CH_ID="";
+String strTELE_UTCOFF="";
 
 bool appSOFTSER(int ID)
 {
     if(!bSOFTSERON)
         return false;
-        
+
     // no query running
     if(strSOFTSER_BUF.length() < 1)
         return false;
@@ -115,39 +134,55 @@ bool appSOFTSER(int ID)
     ////////////////////////////////////////////////////////////////////////
     // Pegestandsmesser
 
-    Serial.println(strSOFTSER_BUF.substring(0,24).c_str());
-
     // got time
     if(ID == 1) // Pegelmesser
     {
 #if defined(ENABLE_XML)
+
     // just for test
-        if(strSOFTSER_BUF.indexOf("<0x03>") > 0)
+        if(softserFunktion == 1)
         {
-            loopSOFTSER(ID, 1);
+            if(strSOFTSER_BUF.indexOf("<0x03>") < 0)
+            {
+                softserFunktion = 0; // restart
+                return false;
+            }
+
+            loopSOFTSER(ID);
         }
         else
-        // got Data
-        if(strSOFTSER_BUF.indexOf("<StationDataList>") >= 0)
         {
-            int sindex = strSOFTSER_BUF.indexOf("<StationDataList>");
-
-            if(sindex >= 0)
+            // got Data
+            if(strSOFTSER_BUF.indexOf("<StationDataList>") >= 0)
             {
-                char* decodexml;
-                sprintf(decodexml, "%s", strSOFTSER_BUF.substring(sindex).c_str());
+                int sindex = strSOFTSER_BUF.indexOf("<StationDataList>");
 
-                //decodeTinyXML(decodexml);
-                testTinyXML();
+                if(sindex >= 0)
+                {
+                    strSOFTSER_BUF = strSOFTSER_BUF.substring(sindex);
 
-                // fill Telemetry
-                snprintf(meshcom_settings.node_parm_1, sizeof(meshcom_settings.node_parm_1), "%s", strTELE_PARM.c_str());
-                snprintf(meshcom_settings.node_unit, sizeof(meshcom_settings.node_unit), "%s", strTELE_UNIT.c_str());
-                snprintf(meshcom_settings.node_values, sizeof(meshcom_settings.node_values), "T:%s", strTELE_VALUES.c_str());
+                    int dindex = strSOFTSER_BUF.indexOf("</StationDataList>");
 
-                // TEST
-                sendTelemetry(ID);
+                    if(dindex > 0)
+                    {
+                        strSOFTSER_BUF = strSOFTSER_BUF.substring(0, dindex+18);
 
+                        if(bSOFTSERDEBUG)
+                        {
+                            Serial.println("decode String..............................");
+                            Serial.println(strSOFTSER_BUF);
+                            Serial.println("decode String..............................");
+                        }
+
+                        if(decodeTinyXML(strSOFTSER_BUF))
+                        {
+                            sendTelemetry(ID);
+
+                            softserFunktion = 0;
+                        }
+                    }
+
+                }
             }
         }
 
@@ -202,8 +237,8 @@ bool getSOFTSER()
                 break;
             }
 
-            if(bSOFTSERDEBUG)
-                Serial.print(c);
+            //if(bSOFTSERDEBUG)
+            //    Serial.print(c);
 
             if((c < 0x20 || c > 0x7f) && c != 0x0d && c != 0x0a)
             {
@@ -221,6 +256,13 @@ bool getSOFTSER()
 
     strSOFTSER_BUF.concat(tmp_data);
     strSOFTSER_BUF.concat("\r\n");
+
+    if(bSOFTSERDEBUG)
+    {
+        Serial.println("------------Buffer filled-----------");
+        Serial.print(strSOFTSER_BUF);
+        Serial.println("------------Buffer filled-----------");
+    }
 
     return true;
 }
@@ -438,7 +480,7 @@ void displaySOFTSER(struct aprsMessage &aprsmsg)
         for(int icd=0;icd<5;icd++)
         {
             if(strValue[icd+7].length() > 0)
-                Serial.printf("<CD id=\"00%s\" name=\"%s\" unit=\"%s\"><VT t=%s>%s</VT></CD>\n", strValue[icd+7].c_str(), getSOFTSER_PARM(iID, icd).c_str(), getSOFTSER_UNIT(iID, icd).c_str(), strValue[6].c_str(), strValue[icd].c_str());
+                Serial.printf("<CD id=\"00%s\" name=\"%s\" unit=\"%s\"><VT t=\"%s\">%s</VT></CD>\n", strValue[icd+7].c_str(), getSOFTSER_PARM(iID, icd).c_str(), getSOFTSER_UNIT(iID, icd).c_str(), strValue[6].c_str(), strValue[icd].c_str());
         }
         Serial.printf("</SD>\n\n");
     }

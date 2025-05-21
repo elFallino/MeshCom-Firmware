@@ -445,7 +445,7 @@ void esp32setup()
     Serial.println("============");
 
     Serial.printf("[HEAP]...%d (free)\n", ESP.getFreeHeap());
-    //Serial.printf("[PSRM]...%s\n", ESP.getFreePsram());
+    Serial.printf("[PSRM]...%d\n", ESP.getFreePsram());
 
     initDisplay();
 
@@ -496,6 +496,8 @@ void esp32setup()
     bAHT20ON = meshcom_settings.node_sset3 & 0x0020;
     bAnalogFilter = meshcom_settings.node_sset3 & 0x0040;
     bUSER_BOARD_LED = meshcom_settings.node_sset3 & 0x0080;
+    
+    bSOFTSERDEBUG = meshcom_settings.node_sset3 & 0x0100;
 
     memset(meshcom_settings.node_update, 0x00, sizeof(meshcom_settings.node_update));
 
@@ -1576,14 +1578,33 @@ void esp32loop()
     #if defined(ENABLE_SOFTSER)
         if(bSOFTSERON)
         {
-            if (bSOFTSER_APP || ((softser_refresh_timer + ((SOFTSER_REFRESH_INTERVAL * 1000) - 3000)) < millis()))
+            // check every 5 seconds to ready next telemetry via serial interface
+            if ((softser_refresh_timer + 5000) < millis() && softserFunktion == 0)
             {
-                // start SOFTSER APP
-                loopSOFTSER(SOFTSER_APP_ID, 0);
+                if(lastSOFTSER_MINUTE != meshcom_settings.node_date_minute && meshcom_settings.node_date_second > 20)
+                {
+                    if(meshcom_settings.node_date_minute % SOFTSER_REFRESH_INTERVAL  == 0)
+                    {
+                        lastSOFTSER_MINUTE = meshcom_settings.node_date_minute;
+
+                        // start SOFTSER APP
+                        loopSOFTSER(SOFTSER_APP_ID);
+                    }
+                }
 
                 softser_refresh_timer = millis();
-
+            }
+            else
+            if (bSOFTSER_APP)
+            {
                 bSOFTSER_APP = false;
+
+                softserFunktion = 0;
+
+                lastSOFTSER_MINUTE = meshcom_settings.node_date_minute;
+                
+                // start SOFTSER APP
+                loopSOFTSER(SOFTSER_APP_ID);
             }
             else
             {
@@ -1775,34 +1796,22 @@ void esp32loop()
 
         posinfo_shot=false;
         
-        if(bSOFTSERON && SOFTSER_APP_ID == 1)
+        if(bDisplayInfo)
         {
-            // no normal positons sent
-            if(bDisplayInfo)
-            {
-                Serial.print(getTimeString());
-                Serial.println("[POS]...NO sendPosition on bSOFTSERON");
-            }
+            Serial.print(getTimeString());
+            Serial.println("[POS]...sendPostion initialized");
         }
-        else
+
+        sendPosition(posinfo_interval, meshcom_settings.node_lat, meshcom_settings.node_lat_c, meshcom_settings.node_lon, meshcom_settings.node_lon_c, meshcom_settings.node_alt, meshcom_settings.node_press, meshcom_settings.node_hum, meshcom_settings.node_temp, meshcom_settings.node_temp2, meshcom_settings.node_gas_res, meshcom_settings.node_co2, meshcom_settings.node_press_alt, meshcom_settings.node_press_asl);
+
+        posinfo_last_lat=posinfo_lat;
+        posinfo_last_lon=posinfo_lon;
+        posinfo_last_direction=posinfo_direction;
+
+        if(pos_shot)
         {
-            if(bDisplayInfo)
-            {
-                Serial.print(getTimeString());
-                Serial.println("[POS]...sendPostion initialized");
-            }
-
-            sendPosition(posinfo_interval, meshcom_settings.node_lat, meshcom_settings.node_lat_c, meshcom_settings.node_lon, meshcom_settings.node_lon_c, meshcom_settings.node_alt, meshcom_settings.node_press, meshcom_settings.node_hum, meshcom_settings.node_temp, meshcom_settings.node_temp2, meshcom_settings.node_gas_res, meshcom_settings.node_co2, meshcom_settings.node_press_alt, meshcom_settings.node_press_asl);
-
-            posinfo_last_lat=posinfo_lat;
-            posinfo_last_lon=posinfo_lon;
-            posinfo_last_direction=posinfo_direction;
-
-            if(pos_shot)
-            {
-                commandAction((char*)"--pos", isPhoneReady, false);
-                pos_shot = false;
-            }
+            commandAction((char*)"--pos", isPhoneReady, false);
+            pos_shot = false;
         }
 
         posinfo_timer = millis();
@@ -1827,8 +1836,8 @@ void esp32loop()
     
     akt_timer = akt_timer * 1000 * 60; // convert to minutes
 
-    if(iNextTelemetry < 5)
-        akt_timer= 15 * 1000; // 15 Seconds PARM, UNIT, EQNS and 1st T-Message
+    if(bSOFTSERON)
+        akt_timer= 10 * 1000; // 10 Seconds PARM, UNIT, EQNS and 1st T-Message
         
     if (((telemetry_timer + akt_timer) < millis()) || (bTeleFirst && bAllStarted))
     {
@@ -1924,8 +1933,8 @@ void esp32loop()
 
             if(bDisplayCont)
             {
-                Serial.printf("[HEAP]<%s> %d (free)\n", getTimeString().c_str(), ESP.getFreeHeap());
-                //Serial.printf("[PSRM]<%s> %d\n", getTimeString().c_str(), ESP.getFreePsram());
+                Serial.printf("%s [HEAP]...%d (free)\n", getTimeString().c_str(), ESP.getFreeHeap());
+                Serial.printf("%s [PSRM]...%d\n", getTimeString().c_str(), ESP.getFreePsram());
             }
 
             BattTimeWait = millis();
