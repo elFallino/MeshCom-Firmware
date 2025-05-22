@@ -119,8 +119,10 @@ char cTimeSource[10];
 char cBLEName[50]={0};
 
 // SOFTSER global variables
-String strSOFTSER_BUF;
+String strSOFTSER_BUF = "";
 bool bSOFTSER_APP = false;
+int lastSOFTSER_MINUTE = -1;
+int softserFunktion=0;
 
 String strSOFTSERAPP_ID = "";    // ID der Messstelle
 String strSOFTSERAPP_NAME = "";  // Name der Messstelle
@@ -166,18 +168,12 @@ U8G2 *u8g2;
 #elif defined(BOARD_RAK4630)
     U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2_1(U8G2_R0);  //RESET CLOCK DATA
     U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2_2(U8G2_R0);  //RESET CLOCK DATA
-#elif defined(BOARD_TLORA_OLV216)
-    U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2_1(U8G2_R0, SCL, SDA, U8X8_PIN_NONE);
-    U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2_2(U8G2_R0, SCL, SDA, U8X8_PIN_NONE);
 #elif defined(BOARD_TBEAM_V3)
     U8G2_SH1106_128X64_NONAME_1_SW_I2C u8g2_1(U8G2_R0, 18, 17, U8X8_PIN_NONE);
     U8G2_SSD1306_128X64_NONAME_1_SW_I2C u8g2_2(U8G2_R0, 18, 17, U8X8_PIN_NONE);
-#elif defined(BOARD_E22_S3)
-    U8G2_SH1106_128X64_NONAME_1_HW_I2C u8g2_1(U8G2_R0);
-    U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2_2(U8G2_R0);
 #else
-    U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2_1(U8G2_R0, SCL, SDA, U8X8_PIN_NONE);
-    U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2_2(U8G2_R0, SCL, SDA, U8X8_PIN_NONE);
+    U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2_1(U8G2_R0);
+    U8G2_SH1106_128X64_NONAME_1_HW_I2C u8g2_2(U8G2_R0);
 #endif
 
 #endif
@@ -1638,7 +1634,7 @@ void checkButtonState()
 
 void sendDisplayPosition(struct aprsMessage &aprsmsg, int16_t rssi, int8_t snr)
 {
-    //Serial.printf("bPosDisplay:%i bSetDisplay:%i pageHold:%i bDisplayTrack:%i\n", bPosDisplay, bSetDisplay, pageHold, bDisplayTrack);
+    //Serial.printf("bPosDisplay:%i bSetDisplay:%i pageHold:%i bDisplayTrack:%i rssi:%d snr:%d\n", bPosDisplay, bSetDisplay, pageHold, bDisplayTrack, rssi, snr);
 
     if(!bPosDisplay)
         return;
@@ -1697,6 +1693,9 @@ void sendDisplayPosition(struct aprsMessage &aprsmsg, int16_t rssi, int8_t snr)
     #ifdef BOARD_E290
         sendDisplay1306(false, true, 0, dzeile[0], (char*)"#S");
     #endif
+
+    snprintf(msg_text, sizeof(msg_text), "%s<>%s", aprsmsg.msg_source_call.c_str(), aprsmsg.msg_source_last.c_str());
+
 
     msg_text[20]=0x00;
     sendDisplay1306(false, false, 3, dzeile[izeile], msg_text);
@@ -2827,7 +2826,7 @@ void sendTelemetry(int ID)
     {
         memset(msg_text, 0x00, sizeof(msg_text));
 
-        if(strlen(meshcom_settings.node_parm_t) > 0 && ID == 1)
+        if(strSOFTSERAPP_NAME.length() > 0 && ID == 1)
         {
             snprintf(msg_text, sizeof(msg_text), "%-9.9s:BITS.00000000%s", stationCall.c_str(), strSOFTSERAPP_NAME.c_str());
         }
@@ -2857,6 +2856,13 @@ void sendTelemetry(int ID)
             strTelemetry.concat(meshcom_settings.node_parm_t);
             strTelemetry.concat(",");
             strTelemetry.concat(meshcom_settings.node_parm_id);
+
+            memset(meshcom_settings.node_parm_1, 0x00, sizeof(meshcom_settings.node_parm_1));
+            memset(meshcom_settings.node_unit, 0x00, sizeof(meshcom_settings.node_unit));
+            memset(meshcom_settings.node_values, 0x00, sizeof(meshcom_settings.node_values));
+            memset(meshcom_settings.node_parm_t, 0x00, sizeof(meshcom_settings.node_parm_t));
+            memset(meshcom_settings.node_parm_id, 0x00, sizeof(meshcom_settings.node_parm_id));
+
         }
         else
         {
