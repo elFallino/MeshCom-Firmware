@@ -41,6 +41,7 @@
 #include <mheard_functions.h>
 #include <clock.h>
 #include <onewire_functions.h>
+#include <onebutton_functions.h>
 #include <lora_setchip.h>
 #include "esp32_functions.h"
 
@@ -74,7 +75,15 @@ int iCount_weiss=0;
 bool bLED = true;
 #endif
 
+#if defined(ENABLE_AUDIO)
+#include "esp32_audio.h"
+#endif
 
+#if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+#include <t-deck/tdeck_main.h>
+#include <t-deck/tdeck_extern.h>
+#include <t-deck/lv_obj_functions.h>
+#endif
 
 /**
  * RadioLib Infos und Examples:
@@ -335,6 +344,9 @@ volatile bool scanFlag = false;
 // flag to indicate one second 
 unsigned long retransmit_timer = 0;
 
+// blink frequency for board_led
+unsigned long led_timer = 0;
+
 // flag to update NTP Time
 unsigned long updateTimeClient = 0;
 
@@ -504,6 +516,15 @@ void esp32setup()
     iButtonPin = BUTTON_PIN;
     if(meshcom_settings.node_button_pin > 0)
         iButtonPin = meshcom_settings.node_button_pin;
+
+    #if defined(ENABLE_AUDIO)
+    init_audio();
+    #endif
+
+    // Initialize T-Deck GUI
+    #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+    initTDeck();
+    #endif
 
     // if Node not set --> WifiAP Mode on
     if(memcmp(meshcom_settings.node_call, "XX0XXX", 6) == 0 || meshcom_settings.node_call[0] == 0x00 || memcmp(meshcom_settings.node_call, "none", 4) == 0)
@@ -677,11 +698,11 @@ void esp32setup()
     if(bONEWIRE)
         init_onewire();
 
+    init_onebutton();
 
-    initButtonPin();
-    
     Serial.printf("[INIT].._GW_ID: %08X\n", _GW_ID);
 
+ 
     ////////////////////////////////////////////////////////////////////
     // Initialize time
 	bool boResult;
@@ -759,12 +780,20 @@ void esp32setup()
     {
         Serial.println(F("success"));
         bRadio=true;
+
+        #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+        tdeck_addMessage(true);
+        #endif
     }
     else
     {
         Serial.print(F("failed, code "));
         Serial.println(state);
         bRadio=false;
+
+        #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+        tdeck_addMessage(false);
+        #endif
     }
 
     #if defined(BOARD_E220)
@@ -794,7 +823,6 @@ void esp32setup()
         }
         #endif
 
-
         // set carrier frequency
         Serial.printf("[LoRa]...RF_FREQUENCY: %.3f MHz\n", meshcom_settings.node_freq);
         if (radio.setFrequency(meshcom_settings.node_freq) == RADIOLIB_ERR_INVALID_FREQUENCY) {
@@ -808,7 +836,6 @@ void esp32setup()
             Serial.println(F("Selected bandwidth is invalid for this module!"));
             while (true);
         }
-
 
         // set spreading factor 
         Serial.printf("[LoRa]...RF_SF: %i\n", meshcom_settings.node_sf);
@@ -1134,6 +1161,10 @@ void esp32setup()
         pinMode(BOARD_LED, OUTPUT);
     #endif
 
+    #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+    tdeck_clear_text_ta();
+    #endif
+
 }
 
 // BLE TX Function -> Node to Client
@@ -1204,11 +1235,17 @@ void esp32loop()
     #ifdef BOARD_LED
         if(bUSER_BOARD_LED)
         {
-            if(bLED)
-                digitalWrite(BOARD_LED, HIGH);
-            else
-                digitalWrite(BOARD_LED, LOW);
-            bLED = !bLED;
+            if ((led_timer + 1000) < millis())   // repeat 1 seconds
+            {
+                if(bLED)
+                    digitalWrite(BOARD_LED, HIGH);
+                else
+                    digitalWrite(BOARD_LED, LOW);
+                bLED = !bLED;
+
+                led_timer = millis();
+            }
+
         }
     #endif
 
@@ -1613,9 +1650,7 @@ void esp32loop()
         }
     #endif
 
-    #if defined (BUTTON_PIN)
-        checkButtonState();
-    #endif
+    loop_onebutton();
 
     #if defined (ANALOG_PIN)
         if(bAnalogCheck)
@@ -1672,8 +1707,6 @@ void esp32loop()
 
         hasMsgFromPhone = false;
     }
-
-    checkButtonState();
 
     if (isPhoneReady == 1)
     {
@@ -1778,21 +1811,19 @@ void esp32loop()
             }
         }
 
+
+        #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+        tdeck_refresh_TRK_view();
+        #endif
         #endif
 
         gps_refresh_timer = millis();
     }
 
-    checkButtonState();
-
     // posinfo_interval in Seconds
     if (((posinfo_timer + (posinfo_interval * 1000)) < millis()) || (millis() > 100000 && millis() < 130000 && bPosFirst) || posinfo_shot)
     {
         bPosFirst = false;
-
-        int interval = posinfo_interval;
-        if(posinfo_shot)
-            interval = 0;
 
         posinfo_shot=false;
         
@@ -1876,8 +1907,6 @@ void esp32loop()
         }
     }
 
-    checkButtonState();
-
     checkSerialCommand();
 
     if(BattTimeWait == 0)
@@ -1927,8 +1956,12 @@ void esp32loop()
                 if(bDisplayCont)
                 {
             		Serial.print("[readBatteryVoltage]...");
-                    Serial.printf("volt %.1f proz %i\n", global_batt, global_proz);
+                    Serial.printf("volt %.2f proz %i max_batt %.3f\n", global_batt/1000., global_proz, meshcom_settings.node_maxv);
                 }
+
+                #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+                tdeck_update_batt_label(global_batt/1000., global_proz);
+                #endif 
             #endif
 
             if(bDisplayCont)
@@ -1940,8 +1973,6 @@ void esp32loop()
             BattTimeWait = millis();
         }
     }
-
-    checkButtonState();
 
 //#ifndef BOARD_TLORA_OLV216
     if(bONEWIRE)
@@ -2014,8 +2045,6 @@ void esp32loop()
         }
     }
     #endif
-
-    checkButtonState();
 
     #if defined(ENABLE_MC811)
     if(bMCU811ON && mcu811_found)
@@ -2090,8 +2119,6 @@ void esp32loop()
     }
     #endif
     
-    checkButtonState();
-
     ////////////////////////////////////////////////
     // WIFI Gateway functions
     if(bGATEWAY && meshcom_settings.node_hasIPaddress)
@@ -2113,14 +2140,10 @@ void esp32loop()
 
     }
 
-    checkButtonState();
-
     if(bEXTUDP)
     {
         getExternUDP();
     }
-
-    checkButtonState();
 
     if(bWEBSERVER || bEXTUDP || bGATEWAY)
     {
@@ -2173,12 +2196,23 @@ void esp32loop()
         {
             startExternUDP();
         }
-}
+    }
+
+    #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+
+    if ((tdeck_tft_timer + (TDECK_TFT_TIMEOUT * 1000)) < millis())
+    {
+        tft_off();
+    }
+
+    lv_task_handler();
+
+    #endif
 
     //
     ////////////////////////////////////////////////
 
-    delay(100);
+    // WOR/KBC not necesary delay(100);
 
     yield();
 }

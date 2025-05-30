@@ -25,9 +25,10 @@ void sendDisplayMainline();
 void sendDisplayTime();
 void mainStartTimeLoop();
 
+void E290DisplayUpdate();
+
+
 void init_loop_function();
-void initButtonPin();
-void checkButtonState();
 
 void initAnalogPin();
 void checkAnalogValue();
@@ -76,6 +77,7 @@ double cround4(double dvar);
 double cround4abs(double dvar);
 
 int conv_fuss(int alt_meter);
+int conv_meter(int alt_fuss);
 
 #ifdef BOARD_E290
 void DrawDirection(float angle, int cx, int cy, int radius);

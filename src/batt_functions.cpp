@@ -49,6 +49,12 @@ uint32_t vbat_pin = BATTERY_PIN;
 
 #endif
 
+#if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+
+uint32_t vbat_pin = BATTERY_PIN;
+
+#endif
+
 #if defined(BOARD_RAK4630) || defined(BOARD_T_ECHO)
 //nothing
 #else
@@ -61,14 +67,8 @@ uint32_t vbat_pin = BATTERY_PIN;
 //static
 esp_adc_cal_characteristics_t adc_chars[sizeof(esp_adc_cal_characteristics_t)];
 
-#if defined(SX1262_V3) || defined(SX1262_E290)
-//static const
-adc_channel_t channel = ADC_CHANNEL_0;     //GPIO34 if ADC1, GPIO14 if ADC2
-//static const
-adc_bits_width_t width = ADC_WIDTH_BIT_12;
-#endif
-
 #if CONFIG_IDF_TARGET_ESP32
+
 #ifdef BOARD_TLORA_OLV216
 //static const
 adc_channel_t channel = ADC_CHANNEL_7;	 //GPIO35
@@ -76,13 +76,21 @@ adc_channel_t channel = ADC_CHANNEL_7;	 //GPIO35
 //static const
 adc_channel_t channel = ADC_CHANNEL_6;     //GPIO34 if ADC1, GPIO14 if ADC2
 #endif
+
 //static const
 adc_bits_width_t width = ADC_WIDTH_BIT_12;
+
 #elif CONFIG_IDF_TARGET_ESP32S2
-//static const
+//static const 
 adc_channel_t channel = ADC_CHANNEL_6;     // GPIO7 if ADC1, GPIO17 if ADC2
 //static const
 adc_bits_width_t width = ADC_WIDTH_BIT_13;
+#elif CONFIG_IDF_TARGET_ESP32S3
+//static const
+adc_channel_t channel = ADC_CHANNEL_6;
+//static const
+adc_bits_width_t width = ADC_WIDTH_BIT_12;
+
 #endif
 
 #if defined(BOARD_TBEAM) || defined(BOARD_SX1268)
@@ -127,8 +135,21 @@ void check_efuse(void)
     } else {
         Serial.printf("Cannot retrieve eFuse Two Point calibration values. Default calibration values will be used.\n");
     }
+#elif CONFIG_IDF_TARGET_ESP32S3
+	//Check if TP is burned into eFuse
+	if (esp_adc_cal_check_efuse(ESP_ADC_CAL_VAL_EFUSE_TP) == ESP_OK) {
+		Serial.printf("eFuse Two Point: Supported\n");
+	} else {
+		Serial.printf("eFuse Two Point: NOT supported\n");
+	}
+	//Check Vref is burned into eFuse
+	if (esp_adc_cal_check_efuse(ESP_ADC_CAL_VAL_EFUSE_VREF) == ESP_OK) {
+		Serial.printf("eFuse Vref: Supported\n");
+	} else {
+		Serial.printf("eFuse Vref: NOT supported\n");
+	}
 #else
-#error "This example is configured for ESP32/ESP32S2."
+#error "This example is configured for ESP32/ESP32S2/ESP32S3."
 #endif
 }
 
@@ -208,6 +229,10 @@ void init_batt(void)
 	analogSetAttenuation(ADC_0db);
 
 	analogReadResolution(12);
+
+#elif defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+// NONE
+
 #else
 	//only for Test check_efuse();
 
@@ -281,6 +306,11 @@ float read_batt(void)
 	
 		raw = (float)battery_levl;
 
+	#elif defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+
+        uint16_t adcValue = analogRead(vbat_pin);
+        raw = adcValue;
+
 	#elif defined(BOARD_HELTEC_V3)
 
 		// ADC resolution
@@ -328,7 +358,7 @@ float read_batt(void)
 
 		if(bDisplayCont)
 		{
-			Serial.printf("%s [BATT]...reading: %lu factor: %.4f voltage: %.2f mV\n", getTimeString().c_str(), fBattFaktor, raw);
+			Serial.printf("%s [BATT]...reading: %u factor: %.4f voltage: %.2f mV\n", getTimeString().c_str(), analogValue, fBattFaktor, raw);
 			delay(500); 
 		}
 
@@ -373,6 +403,8 @@ float read_batt(void)
 		raw = raw * 1000.0; // convert to volt
 	#elif defined(BOARD_E290)
 		raw = raw * 4.13173653;
+	#elif defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+        raw = raw * 1.7209; //1.66051;
 	#else
 		raw = raw * 24.80;
 	#endif

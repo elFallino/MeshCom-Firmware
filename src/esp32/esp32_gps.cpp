@@ -369,42 +369,33 @@ unsigned int readGPS(void)
         delay(200);
     #endif
     
-    String tmp_data = "";
-
-    bool newData = false;
-
-    if(bGPSDEBUG)
+     if(bGPSDEBUG)
         Serial.println("-----------check GPS-----------");
   
-    // For one second we parse GPS data and report some key values
-    //for (unsigned long start = millis(); millis() - start < 1000;)
-    bool bgrun=true;
+    bool newData = false;
     unsigned long start = millis();
-    while(bgrun)
+    unsigned long GPStimeout = millis();
+    bool BurstStart = false;
+
+    GPS.flush();
+
+    while ((millis() - start) < 1000)
     {
-      while (GPS.available())
-      {
-        char c = GPS.read();
-
-        if(c == 0x00)
+        while (GPS.available())
         {
-            bgrun=false;
-            break;
-        }
+            BurstStart = true;
+            GPStimeout = millis();
+            char c = GPS.read();
+            if(((c>=0x20) && (c<0x7f)) || (c==0x0A) || (c==0x0D))
+            {
+                if (tinyGPSPlus.encode(c))
+                    newData = true;
 
-        if(bGPSDEBUG)
-          Serial.print(c);
-
-        tmp_data += c;
-        
-        if (tinyGPSPlus.encode(c))// Did a new valid sentence come in?
-        {
-          newData = true;
+                if(bGPSDEBUG)
+                    Serial.print(c);
+            }
         }
-      }
-    
-      if((millis() - start) > 1000)
-          bgrun=false;
+        if (BurstStart && (GPStimeout+20) < millis()) break;
     }
 
     if(bGPSDEBUG)
@@ -581,19 +572,19 @@ unsigned int getGPS(void)
 
             if(bGPSON)
             {
-                myGPS.setUART2Output(COM_TYPE_UBX); //Set the UART port to output UBX only
+                myGPS.setUART2Output(COM_TYPE_NMEA); //Set the UART port to output NMEA only
                 delay(100);
-                myGPS.enableNMEAMessage(UBX_NMEA_GLL, COM_PORT_UART2);
+                myGPS.enableNMEAMessage(UBX_NMEA_GLL, COM_PORT_UART1);
                 delay(100);
-                myGPS.enableNMEAMessage(UBX_NMEA_GSA, COM_PORT_UART2);
+                myGPS.enableNMEAMessage(UBX_NMEA_GSA, COM_PORT_UART1);
                 delay(100);
-                myGPS.enableNMEAMessage(UBX_NMEA_RMC, COM_PORT_UART2);
+                myGPS.enableNMEAMessage(UBX_NMEA_RMC, COM_PORT_UART1);
                 delay(100);
-                myGPS.enableNMEAMessage(UBX_NMEA_VTG, COM_PORT_UART2);
+                myGPS.enableNMEAMessage(UBX_NMEA_VTG, COM_PORT_UART1);
                 delay(100);
-                myGPS.enableNMEAMessage(UBX_NMEA_RMC, COM_PORT_UART2);
+                myGPS.enableNMEAMessage(UBX_NMEA_RMC, COM_PORT_UART1);
                 delay(100);
-                myGPS.enableNMEAMessage(UBX_NMEA_GGA, COM_PORT_UART2);
+                myGPS.enableNMEAMessage(UBX_NMEA_GGA, COM_PORT_UART1);
                 delay(100);
                 myGPS.saveConfiguration(); //Save the current settings to flash and BBR
                 delay(100);

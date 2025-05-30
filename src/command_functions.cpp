@@ -26,6 +26,7 @@
 #include "io_functions.h"
 #include "softser_functions.h"
 #include <onewire_functions.h>
+#include <onebutton_functions.h>
 
 //TEST #include "compress_functions.h"
 
@@ -44,6 +45,11 @@ extern bool bMitHardReset;
 #ifdef ESP32
 #include <esp_ota_ops.h>
 #include <esp_partition.h>
+#endif
+
+// libs for T-Deck view refresh
+#if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+#include <t-deck/lv_obj_functions.h>
 #endif
 
 uint16_t json_len = 0;
@@ -288,7 +294,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bDisplayVolt = true;
 
-        meshcom_settings.node_sset = meshcom_settings.node_sset | 0x0001;
+        meshcom_settings.node_sset |= 0x0001;
 
         if(ble)
         {
@@ -353,7 +359,7 @@ void commandAction(char *umsg_text, bool ble)
 
         bDisplayCont=true;
 
-        meshcom_settings.node_sset = meshcom_settings.node_sset | 0x4000;
+        meshcom_settings.node_sset |= 0x4000;
 
         save_settings();
 
@@ -397,7 +403,7 @@ void commandAction(char *umsg_text, bool ble)
 
         bSHORTPATH=true;
 
-        meshcom_settings.node_sset = meshcom_settings.node_sset | 0x0400;
+        meshcom_settings.node_sset |= 0x0400;
 
         save_settings();
 
@@ -548,7 +554,7 @@ void commandAction(char *umsg_text, bool ble)
 
         bPosDisplay=true;
 
-        meshcom_settings.node_sset = meshcom_settings.node_sset | 0x0004;
+        meshcom_settings.node_sset |= 0x0004;
 
         if(ble)
         {
@@ -603,7 +609,7 @@ void commandAction(char *umsg_text, bool ble)
         bDisplayOff=true;
         bDisplayIsOff=true;
         
-        meshcom_settings.node_sset = meshcom_settings.node_sset | 0x0002;   // both off + set bDisplyOff
+        meshcom_settings.node_sset |= 0x0002;   // both off + set bDisplyOff
 
         if(ble)
         {
@@ -621,7 +627,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bButtonCheck=true;
 
-        meshcom_settings.node_sset = meshcom_settings.node_sset | 0x0010;
+        meshcom_settings.node_sset |= 0x0010;
 
         if(ble)
         {
@@ -632,7 +638,7 @@ void commandAction(char *umsg_text, bool ble)
 
         save_settings();
 
-        initButtonPin();
+        init_onebutton();
     }
     else
     if(commandCheck(msg_text+2, (char*)"button off") == 0)
@@ -676,7 +682,8 @@ void commandAction(char *umsg_text, bool ble)
         bReturn = true;
 
         iButtonPin = ibt;
-        initButtonPin();
+
+        init_onebutton();
     }
     else
     #if defined (ANALOG_PIN)
@@ -749,7 +756,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bAnalogFilter = true;
 
-        meshcom_settings.node_sset3 = meshcom_settings.node_sset3 | 0x0040;
+        meshcom_settings.node_sset3 |= 0x0040;
 
         save_settings();
 
@@ -765,7 +772,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bAnalogFilter = false;
 
-        meshcom_settings.node_sset3 = meshcom_settings.node_sset3 | 0x7FBF;
+        meshcom_settings.node_sset3 &= ~0x0040;
 
         save_settings();
 
@@ -781,7 +788,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bAnalogCheck=true;
         
-        meshcom_settings.node_sset3 = meshcom_settings.node_sset3 | 0x0008;
+        meshcom_settings.node_sset3 |= 0x0008;
 
         save_settings();
 
@@ -799,7 +806,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bAnalogCheck=false;
         
-        meshcom_settings.node_sset3 = meshcom_settings.node_sset3 & 0x7FF7;
+        meshcom_settings.node_sset3 &= ~0x0008;
 
         if(ble)
         {
@@ -833,11 +840,12 @@ void commandAction(char *umsg_text, bool ble)
         bReturn = true;
     }
     else
+    #ifdef BOARD_LED
     if(commandCheck(msg_text+2, (char*)"board led on") == 0)
     {
         bUSER_BOARD_LED = true;
 
-        meshcom_settings.node_sset3 = meshcom_settings.node_sset3 | 0x0080;
+        meshcom_settings.node_sset3 |= 0x0080;
 
         save_settings();
 
@@ -853,7 +861,9 @@ void commandAction(char *umsg_text, bool ble)
     {
         bUSER_BOARD_LED = false;
 
-        meshcom_settings.node_sset3 = meshcom_settings.node_sset3 | 0x7F7F;
+        digitalWrite(BOARD_LED, LOW);
+
+        meshcom_settings.node_sset3 &= ~0x0080;
 
         save_settings();
 
@@ -865,13 +875,14 @@ void commandAction(char *umsg_text, bool ble)
         bReturn = true;
     }
     else
+    #endif
     if(commandCheck(msg_text+2, (char*)"track on") == 0)
     {
         bDisplayTrack=true;
         
         track_to_meshcom_timer=0;   // damit auch alle 5 minuten zu MeshCom gesendet wird wenn TRACK ON
 
-        meshcom_settings.node_sset = meshcom_settings.node_sset | 0x0020;
+        meshcom_settings.node_sset |= 0x0020;
 
         if(ble)
         {
@@ -881,13 +892,17 @@ void commandAction(char *umsg_text, bool ble)
         bReturn = true;
 
         save_settings();
+
+        #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+        tdeck_refresh_SET_view();
+        #endif
     }
     else
     if(commandCheck(msg_text+2, (char*)"track off") == 0)
     {
         bDisplayTrack=false;
 
-        meshcom_settings.node_sset = meshcom_settings.node_sset & 0x7FDF;
+        meshcom_settings.node_sset &= ~0x0020;
 
         if(ble)
         {
@@ -901,6 +916,10 @@ void commandAction(char *umsg_text, bool ble)
         save_settings();
 
         sendDisplayHead(true);
+
+        #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+        tdeck_refresh_SET_view();
+        #endif
     }
     else
     #if defined (ENABLE_GPS)
@@ -910,7 +929,7 @@ void commandAction(char *umsg_text, bool ble)
         
         init_loop_function();
 
-        meshcom_settings.node_sset = meshcom_settings.node_sset | 0x0040;
+        meshcom_settings.node_sset |= 0x0040;
 
         if(ble)
         {
@@ -920,6 +939,10 @@ void commandAction(char *umsg_text, bool ble)
         bReturn = true;
 
         save_settings();
+
+        #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+        tdeck_refresh_SET_view();
+        #endif
     }
     else
     if(commandCheck(msg_text+2, (char*)"gps off") == 0)
@@ -928,7 +951,7 @@ void commandAction(char *umsg_text, bool ble)
         
         init_loop_function();
         
-        meshcom_settings.node_sset = meshcom_settings.node_sset & 0x7FBF;
+        meshcom_settings.node_sset &= ~0x0040;
 
         if(ble)
         {
@@ -949,6 +972,10 @@ void commandAction(char *umsg_text, bool ble)
         posinfo_interval = POSINFO_INTERVAL;
 
         save_settings();
+        
+        #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+        tdeck_refresh_SET_view();
+        #endif
     }
     else
     if(commandCheck(msg_text+2, (char*)"gps reset") == 0)
@@ -964,6 +991,10 @@ void commandAction(char *umsg_text, bool ble)
         bMitHardReset=true;
 
         state = 1;
+        
+        #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+        tdeck_refresh_SET_view();
+        #endif
 
         return;
     }
@@ -996,7 +1027,7 @@ void commandAction(char *umsg_text, bool ble)
 
         bBLElong=true;
         
-        meshcom_settings.node_sset = meshcom_settings.node_sset | 0x0800;
+        meshcom_settings.node_sset |= 0x0800;
 
         save_settings();
 
@@ -1034,7 +1065,7 @@ void commandAction(char *umsg_text, bool ble)
             bBMEON = false;
             bmx_found = false;
             
-            meshcom_settings.node_sset = meshcom_settings.node_sset | 0x0080;
+            meshcom_settings.node_sset |= 0x0080;
             meshcom_settings.node_sset = meshcom_settings.node_sset & 0x7EFF;   // BME280 off
 
             save_settings();
@@ -1065,7 +1096,7 @@ void commandAction(char *umsg_text, bool ble)
             bBMEON = true;
             bmx_found = false;
             
-            meshcom_settings.node_sset = meshcom_settings.node_sset | 0x0100;
+            meshcom_settings.node_sset |= 0x0100;
             meshcom_settings.node_sset = meshcom_settings.node_sset & 0x7F7F;   // BMP280 off
 
             save_settings();
@@ -1095,7 +1126,7 @@ void commandAction(char *umsg_text, bool ble)
             bBME680ON=true;
             bme680_found=false;
 
-            meshcom_settings.node_sset2 = meshcom_settings.node_sset2 | 0x0004;
+            meshcom_settings.node_sset2 |= 0x0004;
 
             save_settings();
 
@@ -1110,7 +1141,7 @@ void commandAction(char *umsg_text, bool ble)
         bMCU811ON=true;
         mcu811_found=false;
         
-        meshcom_settings.node_sset2 = meshcom_settings.node_sset2 | 0x0008;
+        meshcom_settings.node_sset2 |= 0x0008;
 
         if(ble)
         {
@@ -1141,7 +1172,7 @@ void commandAction(char *umsg_text, bool ble)
         bBMP3ON = true;
         bmp3_found = false;
         
-        meshcom_settings.node_sset3 = meshcom_settings.node_sset3 | 0x0010;
+        meshcom_settings.node_sset3 |= 0x0010;
 
         save_settings();
 
@@ -1165,7 +1196,7 @@ void commandAction(char *umsg_text, bool ble)
         bAHT20ON = true;
         aht20_found = false;
         
-        meshcom_settings.node_sset3 = meshcom_settings.node_sset3 | 0x0020;
+        meshcom_settings.node_sset3 |= 0x0020;
 
         save_settings();
 
@@ -1180,7 +1211,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bNoMSGtoALL=true;
         
-        meshcom_settings.node_sset3 = meshcom_settings.node_sset3 | 0x0002;
+        meshcom_settings.node_sset3 |= 0x0002;
 
         if(ble)
         {
@@ -1190,6 +1221,10 @@ void commandAction(char *umsg_text, bool ble)
         bReturn = true;
 
         save_settings();
+        
+        #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+        tdeck_refresh_SET_view();
+        #endif
     }
     else
     if(commandCheck(msg_text+2, (char*)"bmx off") == 0 || commandCheck(msg_text+2, (char*)"bme off") == 0 || commandCheck(msg_text+2, (char*)"bmp off") == 0)
@@ -1217,7 +1252,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bBMP3ON=false;
         
-        meshcom_settings.node_sset3 = meshcom_settings.node_sset3 & 0x7FEF; // BMP390 off
+        meshcom_settings.node_sset3 &= ~0x0010; // BMP390 off
 
         if(ble)
         {
@@ -1233,7 +1268,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bAHT20ON=false;
         
-        meshcom_settings.node_sset3 = meshcom_settings.node_sset3 & 0x7FDF; // AHT20 off
+        meshcom_settings.node_sset3 &= ~0x0020; // AHT20 off
 
         if(ble)
         {
@@ -1250,7 +1285,7 @@ void commandAction(char *umsg_text, bool ble)
         bBME680ON=false;
         bme680_found=false;
         
-        meshcom_settings.node_sset2 = meshcom_settings.node_sset2 & 0x7FFB; // BME680 off
+        meshcom_settings.node_sset2 &= ~0x0004; // BME680 off
 
         if(ble)
         {
@@ -1267,7 +1302,7 @@ void commandAction(char *umsg_text, bool ble)
         bMCU811ON=false;
         mcu811_found=false;
         
-        meshcom_settings.node_sset2 = meshcom_settings.node_sset2 & 0x7FF7; // MCU811 off
+        meshcom_settings.node_sset2 &= ~0x0008; // MCU811 off
 
         if(ble)
         {
@@ -1283,7 +1318,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bNoMSGtoALL=false;
         
-        meshcom_settings.node_sset3 = meshcom_settings.node_sset3 & 0x7FFD;
+        meshcom_settings.node_sset3 &= ~0x0002;
         
         if(ble)
         {
@@ -1293,6 +1328,10 @@ void commandAction(char *umsg_text, bool ble)
         bReturn = true;
 
         save_settings();
+        
+        #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+        tdeck_refresh_SET_view();
+        #endif
     }
     else
 #if defined(LPS33)
@@ -1300,7 +1339,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bLPS33=true;
         
-        meshcom_settings.node_sset2 = meshcom_settings.node_sset2 | 0x0002;
+        meshcom_settings.node_sset2 |= 0x0002;
 
         if(ble)
         {
@@ -1316,7 +1355,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bLPS33=false;
         
-        meshcom_settings.node_sset2 = meshcom_settings.node_sset2 & 0x7FFD;
+        meshcom_settings.node_sset2 &= ~0x0002;
 
         if(ble)
         {
@@ -1334,7 +1373,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bONEWIRE=true;
         
-        meshcom_settings.node_sset2 = meshcom_settings.node_sset2 | 0x0001;
+        meshcom_settings.node_sset2 |= 0x0001;
 
         if(ble)
         {
@@ -1355,7 +1394,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bONEWIRE=false;
         
-        meshcom_settings.node_sset2 = meshcom_settings.node_sset2 & 0x7FFE;
+        meshcom_settings.node_sset2 &= ~0x0001;
 
         if(ble)
         {
@@ -1418,7 +1457,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bGATEWAY=true;
         
-        meshcom_settings.node_sset = meshcom_settings.node_sset | 0x01000;
+        meshcom_settings.node_sset |= 0x1000;
 
         if(ble)
         {
@@ -1434,7 +1473,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bGATEWAY=false;
         
-        meshcom_settings.node_sset = meshcom_settings.node_sset & 0x6FFF;   // mask 0x1000
+        meshcom_settings.node_sset &= ~0x1000;   // mask 0x1000
 
         if(ble)
         {
@@ -1466,7 +1505,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bGATEWAY_NOPOS=true;
         
-        meshcom_settings.node_sset2 = meshcom_settings.node_sset2 | 0x0100;
+        meshcom_settings.node_sset2 |= 0x0100;
 
         if(ble)
         {
@@ -1481,10 +1520,10 @@ void commandAction(char *umsg_text, bool ble)
     if(commandCheck(msg_text+2, (char*)"webserver on") == 0)
     {
         bWEBSERVER=true;
-        meshcom_settings.node_sset2  = meshcom_settings.node_sset2 | 0x0040;    // mask 0x0040
+        meshcom_settings.node_sset2 |= 0x0040;    // mask 0x0040
 
         bWIFIAP=false;
-        meshcom_settings.node_sset2  = meshcom_settings.node_sset2 & 0x7F7F;    // mask 0x0080
+        meshcom_settings.node_sset2 &= 0x0080;    // mask 0x0080
 
         if(ble)
         {
@@ -1497,12 +1536,16 @@ void commandAction(char *umsg_text, bool ble)
 
         if(!meshcom_settings.node_hasIPaddress)
             rebootAuto = millis() + 15 * 1000; // 15 Sekunden
+        
+        #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+        tdeck_refresh_SET_view();
+        #endif
     }
     else
     if(commandCheck(msg_text+2, (char*)"webserver off") == 0)
     {
         bWEBSERVER=false;
-        meshcom_settings.node_sset2  = meshcom_settings.node_sset2 & 0x7FBF;   // mask 0x0040
+        meshcom_settings.node_sset2 &= ~0x0040;   // mask 0x0040
 
         if(ble)
         {
@@ -1515,6 +1558,10 @@ void commandAction(char *umsg_text, bool ble)
 
         if(meshcom_settings.node_hasIPaddress)
             rebootAuto = millis() + 15 * 1000; // 15 Sekunden
+        
+        #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+        tdeck_refresh_SET_view();
+        #endif
     }
     else
     if(commandCheck(msg_text+2, (char*)"webpwd ") == 0)
@@ -1574,6 +1621,10 @@ void commandAction(char *umsg_text, bool ble)
         }
 
         save_settings();
+        
+        #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+        tdeck_refresh_SET_view();
+        #endif
 
         return;
     }
@@ -1582,7 +1633,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bMESH=true;
         
-        meshcom_settings.node_sset2 = meshcom_settings.node_sset2 & 0x7FDF;   // mask 0x0020
+        meshcom_settings.node_sset2 &= ~0x0020;   // mask 0x0020
 
         if(ble)
         {
@@ -1592,13 +1643,17 @@ void commandAction(char *umsg_text, bool ble)
         bReturn = true;
 
         save_settings();
+        
+        #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+        tdeck_refresh_SET_view();
+        #endif
     }
     else
     if(commandCheck(msg_text+2, (char*)"mesh off") == 0)
     {
         bMESH=false;
         
-        meshcom_settings.node_sset2 = meshcom_settings.node_sset2 | 0x00020;
+        meshcom_settings.node_sset2 |= 0x0020;
 
         if(ble)
         {
@@ -1608,6 +1663,10 @@ void commandAction(char *umsg_text, bool ble)
         bReturn = true;
 
         save_settings();
+        
+        #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+        tdeck_refresh_SET_view();
+        #endif
     }
     else
     if(commandCheck(msg_text+2, (char*)"extudp on") == 0)
@@ -1632,7 +1691,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bEXTUDP=false;
         
-        meshcom_settings.node_sset = meshcom_settings.node_sset & 0x5FFF;   // mask 0x2000
+        meshcom_settings.node_sset &= ~0x2000;   // mask 0x2000
 
         if(ble)
         {
@@ -1686,7 +1745,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bDEBUG=false;
 
-        meshcom_settings.node_sset = meshcom_settings.node_sset & 0x7FF7;   // both off + set bDisplyOff
+        meshcom_settings.node_sset &= ~0x0008;   // both off + set bDisplyOff
 
         if(ble)
         {
@@ -1722,7 +1781,7 @@ void commandAction(char *umsg_text, bool ble)
         bDisplayInfo=false;
         bDisplayRetx=false;
 
-        meshcom_settings.node_sset = meshcom_settings.node_sset & 0x7DFF;   //
+        meshcom_settings.node_sset &= ~0x0200;   //
 
         if(ble)
         {
@@ -1761,7 +1820,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bBOOSTEDGAIN = false;
 
-         meshcom_settings.node_sset2 &=  ~0x0800;
+         meshcom_settings.node_sset2 &= ~0x0800;
 
         if(ble)
         {
@@ -1798,7 +1857,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bBLEDEBUG=false;
 
-        meshcom_settings.node_sset3 = meshcom_settings.node_sset3 & 0x7FFB;
+        meshcom_settings.node_sset3 &= ~0x0004;
 
         if(ble)
         {
@@ -1814,7 +1873,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bWXDEBUG=true;
 
-        meshcom_settings.node_sset3 = meshcom_settings.node_sset3 & 0x0008;
+        meshcom_settings.node_sset3 = meshcom_settings.node_sset3 | 0x0008;
 
         if(ble)
         {
@@ -1830,7 +1889,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bWXDEBUG=false;
 
-        meshcom_settings.node_sset3 = meshcom_settings.node_sset3 & 0x7FF7;
+        meshcom_settings.node_sset3 &= ~0x0008;
 
         if(ble)
         {
@@ -1862,7 +1921,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bGPSDEBUG=false;
 
-        meshcom_settings.node_sset2 = meshcom_settings.node_sset2 & 0x7FEF;
+        meshcom_settings.node_sset2 &= ~0x0010;
 
         if(ble)
         {
@@ -1896,7 +1955,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bSOFTSERDEBUG=false;
 
-        meshcom_settings.node_sset3 = meshcom_settings.node_sset3 & 0x7EFF;
+        meshcom_settings.node_sset3 &= ~0x0100;
 
         if(ble)
         {
@@ -1930,7 +1989,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bSOFTSERON=false;
 
-        meshcom_settings.node_sset2 = meshcom_settings.node_sset2 & 0x7BFF;
+        meshcom_settings.node_sset2 &= ~0x0400;
 
         if(ble)
         {
@@ -2148,6 +2207,10 @@ void commandAction(char *umsg_text, bool ble)
 
         if(ble)
             sendAPRSset();
+        
+        #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+        tdeck_refresh_SET_view();
+        #endif
 
         return;
     }
@@ -2172,6 +2235,10 @@ void commandAction(char *umsg_text, bool ble)
 
         if(ble)
             sendAPRSset();
+        
+        #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+        tdeck_refresh_SET_view();
+        #endif
 
         return;
     }
@@ -2223,6 +2290,10 @@ void commandAction(char *umsg_text, bool ble)
         save_settings();
 
         rebootAuto = millis() + 15 * 1000; // 15 Sekunden
+        
+        #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+        tdeck_refresh_SET_view();
+        #endif
 
         return;
     }
@@ -2338,13 +2409,13 @@ void commandAction(char *umsg_text, bool ble)
     if(commandCheck(msg_text+2, (char*)"wifiap off") == 0)
     {
         bWIFIAP=false;
-        meshcom_settings.node_sset2  = meshcom_settings.node_sset2 & 0x7F7F;    // mask 0x0080
+        meshcom_settings.node_sset2  &= ~0x0080;    // mask 0x0080
 
         bWEBSERVER=false;
-        meshcom_settings.node_sset2  = meshcom_settings.node_sset2 & 0x7FBF;    // mask 0x0040
+        meshcom_settings.node_sset2  &= ~0x0040;    // mask 0x0040
 
         bGATEWAY=false;
-        meshcom_settings.node_sset  = meshcom_settings.node_sset & 0x7EFF;    // mask 0x1000
+        meshcom_settings.node_sset  &= ~0x1000;    // mask 0x1000
 
         if(ble)
         {
@@ -2488,6 +2559,10 @@ void commandAction(char *umsg_text, bool ble)
         }
 
         save_settings();
+        
+        #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+        tdeck_refresh_SET_view();
+        #endif
 
         bPos=true;
     }
@@ -2514,6 +2589,10 @@ void commandAction(char *umsg_text, bool ble)
         }
 
         save_settings();
+        
+        #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+        tdeck_refresh_SET_view();
+        #endif
 
         bPos=true;
     }
@@ -2536,6 +2615,10 @@ void commandAction(char *umsg_text, bool ble)
         }
 
         save_settings();
+        
+        #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+        tdeck_refresh_SET_view();
+        #endif
 
         bPos=true;
     }
@@ -2770,6 +2853,10 @@ void commandAction(char *umsg_text, bool ble)
 
             rebootAuto = millis() + 15 * 1000; // 15 Sekunden
         }
+        
+        #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+        tdeck_refresh_SET_view();
+        #endif
 
         return;
     }
@@ -2779,17 +2866,20 @@ void commandAction(char *umsg_text, bool ble)
         snprintf(_owner_c, sizeof(_owner_c), "%s", msg_text+14);
         sscanf(_owner_c, "%d", &iVar);
 
-        if(iVar < 0 || iVar > 78)
+        if(iVar < 2 || iVar > 20)
         {
-            Serial.printf("wifitxpower %i not between %i (factor) and max %i (factor) \n", iVar, TX_POWER_MIN, TX_POWER_MAX);
+            Serial.printf("wifitxpower %i not between 2dBm and max 20 dBm\n", iVar);
         }
         else
         {
-            meshcom_settings.node_wifi_power=iVar;
+            meshcom_settings.node_wifi_power = iVar;
 
-            Serial.printf("set wifitxpower to % (factor)\n", meshcom_settings.node_wifi_power);
+            Serial.printf("set wifitxpower to %i dBm (factor:%i)\n", iVar, meshcom_settings.node_wifi_power/4);
 
             save_settings();
+            
+            Serial.println("Auto. Reboot after 15 sec.");
+            rebootAuto = millis() + 15 * 1000; // 15 Sekunden
         }
 
         return;
@@ -3132,6 +3222,10 @@ void commandAction(char *umsg_text, bool ble)
         bReturn = true;
 
         save_settings();
+        
+        #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
+        tdeck_refresh_SET_view();
+        #endif
 
     }
     else

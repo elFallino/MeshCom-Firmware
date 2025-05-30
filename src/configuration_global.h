@@ -1,5 +1,5 @@
 #define SOURCE_VERSION "4.34"
-#define SOURCE_VERSION_SUB "x"
+#define SOURCE_VERSION_SUB "y"
 
 //Hardware Types
 #define TLORA_V2 1
@@ -50,7 +50,13 @@
 #define ALIVERESET_INTERVAL 2 * 10 * 30    // 1/2 Stunde
 #define BLEBLINK_INTERVAL 3000             // BLEBLINK interval in milliseconds
 
-#ifdef ENABLE_XML
+#if defined(ENABLE_XML)
+#define MAX_MHEARD 5                       // max count of messages in mheard ringbuffer
+#define MAX_MHPATH 5                       // max count of messages in mhpath ringbuffer
+#define MAX_RING 20                        // max count of messages in ringbuffer
+#define MAX_LOG 20                         // max count of messages in ringbuffer
+#define MAX_RING_UDP 20                    // size of Ringbuffer for UDP TX messages received from LoRa
+#elif defined(ENABLE_SBUFFER)
 #define MAX_MHEARD 5                       // max count of messages in mheard ringbuffer
 #define MAX_MHPATH 5                       // max count of messages in mhpath ringbuffer
 #define MAX_RING 20                        // max count of messages in ringbuffer
@@ -58,7 +64,7 @@
 #define MAX_RING_UDP 20                    // size of Ringbuffer for UDP TX messages received from LoRa
 #else
 #define MAX_MHEARD 40                      // max count of messages in mheard ringbuffer
-#define MAX_MHPATH 50                      // max count of messages in mhpath ringbuffer
+#define MAX_MHPATH 40                      // max count of messages in mhpath ringbuffer
 #define MAX_RING 30                        // max count of messages in ringbuffer
 #define MAX_LOG 20                         // max count of messages in ringbuffer
 #define MAX_RING_UDP 20                    // size of Ringbuffer for UDP TX messages received from LoRa
