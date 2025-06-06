@@ -253,7 +253,7 @@ bool loopBMX280()
 	if(bWXDEBUG)
 	{
 		Serial.print("Pressure: "); Serial.println(fPress);
-		Serial.print("Pressure (64 bit): "); Serial.println(bmx280.getPressure64());
+		//Serial.print("Pressure (64 bit): "); Serial.println(bmx280.getPressure64());
 		Serial.print("Temperature: "); Serial.println(fTemp);
 	}
 
@@ -305,7 +305,7 @@ int getPressALT()
 
 float getPressASL(int current_alt)
 {
-	//willbe set withj --setpress
+	//willbe set with --setpress
 	//fBaseAltidude = (float)meshcom_settings.node_alt;
 	//fBasePress = meshcom_settings.node_press;
 	

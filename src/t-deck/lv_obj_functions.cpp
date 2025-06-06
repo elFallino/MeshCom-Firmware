@@ -84,6 +84,7 @@ lv_obj_t    *mesh_sw;
 lv_obj_t    *noallmsg_sw;
 lv_obj_t    *gpson_sw;
 lv_obj_t    *track_sw;
+lv_obj_t    *wifiap_sw;
 lv_obj_t    *mute_sw;
 
 //////////////////////////////////////////////
@@ -667,6 +668,21 @@ void setDisplayLayout(lv_obj_t *parent)
 
     lv_obj_add_event_cb(mute_sw, btn_event_handler_switch, LV_EVENT_ALL, NULL);
 
+    // WIFIAP ON/OFF
+    lv_obj_t * btn_wifiap = lv_btn_create(t1);
+    lv_obj_set_pos(btn_wifiap, 185, 375);
+    lv_obj_set_size(btn_wifiap, 50, 25);
+
+    lv_obj_t * btn_wifiap_label = lv_label_create(btn_wifiap);
+    lv_label_set_text(btn_wifiap_label, "WIFAP");
+    lv_obj_center(btn_wifiap_label);
+
+    wifiap_sw = lv_switch_create(t1);
+    lv_obj_set_pos(wifiap_sw, 245, 375);
+    lv_obj_set_size(wifiap_sw, 45, 25);
+
+    lv_obj_add_event_cb(wifiap_sw, btn_event_handler_switch, LV_EVENT_ALL, NULL);
+
     // BTN SETUP
     lv_obj_t * btnsetup = lv_btn_create(t1);
     lv_obj_set_pos(btnsetup, 0, 410);
@@ -1062,7 +1078,7 @@ void add_map_point(String callsign, double dlat, double dlon, bool bHome)
         map_point_lon[map_point_count] = 0.0;
     }
 
-    Serial.printf("[MAP]...%-10.10s point:%2i node_lat:%.4lf node_lon:%.4lf latd:%.4lf lonf:%.4lf xe:%.4lf, ye:%.4lf <%3i/%3i)\n", callsign, ipoint, dlat, dlon, latdiff, londiff, xe, ye, x, y);
+    Serial.printf("[MAP]...%-10.10s point:%2i node_lat:%.4lf node_lon:%.4lf latd:%.4lf lonf:%.4lf xe:%.4lf, ye:%.4lf <%3i/%3i)\n", callsign.c_str(), ipoint, dlat, dlon, latdiff, londiff, xe, ye, x, y);
 
     map_point[ipoint] = lv_obj_create(map_ta);
     lv_obj_set_size(map_point[ipoint],10, 10);
@@ -1347,7 +1363,7 @@ void tdeck_add_to_pos_view(String callsign, double u_dlat, char lat_c, double u_
 
     if (bDEBUG)
     {
-        Serial.printf("[POSVIEW]...add %s\n", callsign);
+        Serial.printf("[POSVIEW]...add %s\n", callsign.c_str());
 
     }
 
@@ -1381,7 +1397,7 @@ void tdeck_add_to_pos_view(String callsign, double u_dlat, char lat_c, double u_
         }
     }
 
-    snprintf(buf, 10, "%s", callsign);
+    snprintf(buf, 10, "%s", callsign.c_str());
     lv_table_set_cell_value(position_ta, 1, 0, buf);
 
     snprintf(buf, 6, "%02i:%02i", meshcom_settings.node_date_hour, meshcom_settings.node_date_minute);
@@ -1433,7 +1449,6 @@ void tdeck_refresh_SET_view()
     sprintf(vChar, "%d", meshcom_settings.node_ackid);
     lv_label_set_text(btn_ack_id_label, vChar);
 
-
     // WEB
     if (bWEBSERVER)
         lv_obj_add_state(web_sw, LV_STATE_CHECKED);
@@ -1467,6 +1482,11 @@ void tdeck_refresh_SET_view()
         lv_obj_add_state(mute_sw, LV_STATE_CHECKED);
     else
         lv_obj_clear_state(mute_sw, LV_STATE_CHECKED);
+    // WIFIAP
+    if (bWIFIAP)
+        lv_obj_add_state(wifiap_sw, LV_STATE_CHECKED);
+    else
+        lv_obj_clear_state(wifiap_sw, LV_STATE_CHECKED);
 }
 
 /**
@@ -1508,7 +1528,7 @@ void tdeck_refresh_TRK_view()
             else
                 snprintf(ctype, sizeof(ctype), "TRACK:off");
 
-            snprintf(ctrack, sizeof(ctrack), "%s %s %i\nDATE :%s\nTIME :%s\nLAT  :%008.4lf %c\nLON  :%08.4lf %c\nDIST :%i m\nDIR  :old %.0lf\nDIR  :new %.0lf\nRATE :%4i %isec",
+            snprintf(ctrack, sizeof(ctrack), "%s %s %i\nDATE :%s\nTIME :%s\nLAT  :%008.4lf %c\nLON  :%08.4lf %c\nDIST :%i m\nDIR  :old %.0lf\nDIR  :new %.0lf\nRATE :%4li %isec",
                 ctype, 
                 (posinfo_fix ? "fix" : "nofix"), 
                 posinfo_hdop, 
@@ -1567,7 +1587,7 @@ void tdeck_refresh_TRK_view()
 /**
  * adds an message to the MSG view
  */
-void tdeck_add_MSG(aprsMessage aprsmsg)
+void tdeck_add_MSG(aprsMessage aprsmsg, bool bWithAudio)
 {
     int iackpos = aprsmsg.msg_payload.indexOf('{');
     String strAscii = "";//aprsmsg.msg_payload;
@@ -1577,13 +1597,13 @@ void tdeck_add_MSG(aprsMessage aprsmsg)
     else
         strAscii = utf8ascii(aprsmsg.msg_payload);
 
-    tdeck_add_MSG(aprsmsg.msg_destination_call, aprsmsg.msg_source_path, strAscii);
+    tdeck_add_MSG(aprsmsg.msg_destination_call, aprsmsg.msg_source_path, strAscii, bWithAudio);
 }                  
 
 /**
  * adds an message to the MSG view
  */
-void tdeck_add_MSG(String callsign, String path, String message)
+void tdeck_add_MSG(String callsign, String path, String message, bool bWithAudio)
 {
     char buf[256];
 
@@ -1629,9 +1649,12 @@ void tdeck_add_MSG(String callsign, String path, String message)
         tft_on();
     }
 
-    // play_sound
-    if (!play_file_from_sd(meshcom_settings.node_audio_msg.c_str(), 12))
+    if(bWithAudio)
     {
-        play_cw_start();
+        // play_sound
+        if (!play_file_from_sd_blocking(meshcom_settings.node_audio_msg.c_str(), 12))
+        {
+            play_cw_start();
+        }
     }
 }

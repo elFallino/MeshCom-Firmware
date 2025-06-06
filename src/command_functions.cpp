@@ -514,6 +514,8 @@ void commandAction(char *umsg_text, bool ble)
             delay(100);
             Serial.printf("--softser   on/off/send/app/baud/fixpegel/fixpegel2/fixtemp\n");
             delay(100);
+            Serial.printf("--softserread   on/off (show rx msg)\n");
+            delay(100);
             Serial.printf("--spectrum  run spectral scan  --specstart MHz --specend MHz  --specstep MHz  --specsamples 500-2048\n");
             delay(100);
             //own-call-ssid:PARM.VOLT,AMPERE,BATT,,,track,-,-,-,-,-,-,-
@@ -1523,7 +1525,7 @@ void commandAction(char *umsg_text, bool ble)
         meshcom_settings.node_sset2 |= 0x0040;    // mask 0x0040
 
         bWIFIAP=false;
-        meshcom_settings.node_sset2 &= 0x0080;    // mask 0x0080
+        meshcom_settings.node_sset2 &= ~0x0080;    // mask 0x0080
 
         if(ble)
         {
@@ -1534,8 +1536,8 @@ void commandAction(char *umsg_text, bool ble)
 
         save_settings();
 
-        if(!meshcom_settings.node_hasIPaddress)
-            rebootAuto = millis() + 15 * 1000; // 15 Sekunden
+        //if(!meshcom_settings.node_hasIPaddress)
+        //    rebootAuto = millis() + 15 * 1000; // 15 Sekunden
         
         #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
         tdeck_refresh_SET_view();
@@ -1547,6 +1549,8 @@ void commandAction(char *umsg_text, bool ble)
         bWEBSERVER=false;
         meshcom_settings.node_sset2 &= ~0x0040;   // mask 0x0040
 
+        Serial.printf("off sset2:<%04X>\n", meshcom_settings.node_sset2);
+
         if(ble)
         {
             bNodeSetting=true;
@@ -1556,8 +1560,8 @@ void commandAction(char *umsg_text, bool ble)
 
         save_settings();
 
-        if(meshcom_settings.node_hasIPaddress)
-            rebootAuto = millis() + 15 * 1000; // 15 Sekunden
+        //if(meshcom_settings.node_hasIPaddress)
+        //    rebootAuto = millis() + 15 * 1000; // 15 Sekunden
         
         #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
         tdeck_refresh_SET_view();
@@ -1905,7 +1909,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bGPSDEBUG=true;
 
-        meshcom_settings.node_sset2 = meshcom_settings.node_sset2 | 0x0010;
+        meshcom_settings.node_sset2 |= 0x0010;
 
         if(ble)
         {
@@ -1939,7 +1943,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bSOFTSERDEBUG=true;
 
-        meshcom_settings.node_sset3 = meshcom_settings.node_sset3 | 0x0100;
+        meshcom_settings.node_sset3 |= 0x0100;
 
         if(ble)
         {
@@ -1967,11 +1971,43 @@ void commandAction(char *umsg_text, bool ble)
         return;
     }
     else
+    if(commandCheck(msg_text+2, (char*)"softserread on") == 0)
+    {
+        bSOFTSERREAD=true;
+
+        meshcom_settings.node_sset2 |= 0x0200;
+
+        if(ble)
+        {
+            addBLECommandBack((char*)"--softserread on");
+        }
+
+        save_settings();
+
+        return;
+    }
+    else
+    if(commandCheck(msg_text+2, (char*)"softserread off") == 0)
+    {
+        bSOFTSERREAD=false;
+
+        meshcom_settings.node_sset2 &= ~0x0200;
+
+        if(ble)
+        {
+            addBLECommandBack((char*)"-softserread off");
+        }
+
+        save_settings();
+
+        return;
+    }
+    else
     if(commandCheck(msg_text+2, (char*)"softser on") == 0)
     {
         bSOFTSERON=true;
 
-        meshcom_settings.node_sset2 = meshcom_settings.node_sset2 | 0x0400;
+        meshcom_settings.node_sset2 |= 0x0400;
 
         if(ble)
         {
@@ -2107,7 +2143,7 @@ void commandAction(char *umsg_text, bool ble)
         snprintf(_owner_c, sizeof(_owner_c), "%s", msg_text+9);
 
         _owner_c[14] = 0x00;    // max. 14 chars
-        snprintf(meshcom_settings.node_passwd, sizeof(meshcom_settings.node_passwd), "%s", _owner_c);
+        snprintf(meshcom_settings.node_passwd, sizeof(meshcom_settings.node_passwd), "%-14.14s", _owner_c);
 
         save_settings();
 
@@ -2392,7 +2428,7 @@ void commandAction(char *umsg_text, bool ble)
         meshcom_settings.node_sset2  = meshcom_settings.node_sset2 | 0x0040;    // mask 0x0040
 
         bGATEWAY=false;
-        meshcom_settings.node_sset  = meshcom_settings.node_sset & 0x7EFF;    // mask 0x1000
+        meshcom_settings.node_sset &= ~0x1000;   // mask 0x1000
 
         if(ble)
         {
@@ -2410,12 +2446,6 @@ void commandAction(char *umsg_text, bool ble)
     {
         bWIFIAP=false;
         meshcom_settings.node_sset2  &= ~0x0080;    // mask 0x0080
-
-        bWEBSERVER=false;
-        meshcom_settings.node_sset2  &= ~0x0040;    // mask 0x0040
-
-        bGATEWAY=false;
-        meshcom_settings.node_sset  &= ~0x1000;    // mask 0x1000
 
         if(ble)
         {
@@ -3638,8 +3668,8 @@ void commandAction(char *umsg_text, bool ble)
                     SOURCE_VERSION, SOURCE_VERSION_SUB , __DATE__ , __TIME__ , meshcom_settings.node_update,
                     meshcom_settings.node_call, _GW_ID, BOARD_HARDWARE, meshcom_settings.node_utcoff, cTimeSource, global_batt/1000.0, global_proz, meshcom_settings.node_maxv, millis());
 
-            Serial.printf("...NOMSGALL %s ...MESH %s ...BUTTON (%i) %s ...SOFTSER %s\n...PASSWD <%s>\n",
-                (bNoMSGtoALL?"on":"off"), (bMESH?"on":"off"), ibt, (bButtonCheck?"on":"off"), (bSOFTSERON?"on":"off"), meshcom_settings.node_passwd);
+            Serial.printf("...NOMSGALL %s ...MESH %s ...BUTTON (%i) %s ...SOFTSER %s ... SOFTSERREAD %s\n...PASSWD <%s>\n",
+                (bNoMSGtoALL?"on":"off"), (bMESH?"on":"off"), ibt, (bButtonCheck?"on":"off"), (bSOFTSERON?"on":"off"), (bSOFTSERREAD?"on":"off"), meshcom_settings.node_passwd);
 
             Serial.printf("...DEBUG %s ...LORADEBUG %s ...GPSDEBUG %s ...SOFTSERDEBUG %s\n...WXDEBUG %s ...BLEDEBUG %s\n",
                     (bDEBUG?"on":"off"), (bLORADEBUG?"on":"off"), (bGPSDEBUG?"on":"off"), (bSOFTSERDEBUG?"on":"off"),(bWXDEBUG?"on":"off"), (bBLEDEBUG?"on":"off"));
@@ -3764,7 +3794,7 @@ void commandAction(char *umsg_text, bool ble)
                 (int)posinfo_satcount, (posinfo_fix?"fix":"nofix"), posinfo_hdop, (int)posinfo_interval, meshcom_settings.node_postime, (int)(((posinfo_timer + (posinfo_interval * 1000)) - millis())/1000), posinfo_distance, (int)posinfo_direction, (int)posinfo_last_direction,
                 meshcom_settings.node_date_year, meshcom_settings.node_date_month, meshcom_settings.node_date_day,meshcom_settings.node_date_hour, meshcom_settings.node_date_minute, meshcom_settings.node_date_second, getTimeZone().c_str(), cTimeSource);
 
-                printf("...SYMB: %c %c\n...GPS: %s\n...Track: %s\n...SOFTSER: %s APP:%i\n", meshcom_settings.node_symid, meshcom_settings.node_symcd, (bGPSON?"on":"off"), (bDisplayTrack?"on":"off"), (bSOFTSERON?"on":"off"), SOFTSER_APP_ID);
+                printf("...SYMB: %c %c\n...GPS: %s\n...Track: %s\n...SOFTSER: %s APP:%i\n...SOFTSERREAD: %s\n", meshcom_settings.node_symid, meshcom_settings.node_symcd, (bGPSON?"on":"off"), (bDisplayTrack?"on":"off"), (bSOFTSERON?"on":"off"), SOFTSER_APP_ID, (bSOFTSERREAD?"on":"off"));
             }
         }
 
@@ -3882,7 +3912,7 @@ void commandAction(char *umsg_text, bool ble)
             addBLECommandBack(print_buff);
         }
 
-        Serial.printf("\nMeshCom %-4.4s%-1.1s Client\n...wrong command %s\n", SOURCE_VERSION, SOURCE_VERSION_SUB, msg_text);
+        Serial.printf("\n...wrong command %s\n", msg_text);
     }
 }
 
