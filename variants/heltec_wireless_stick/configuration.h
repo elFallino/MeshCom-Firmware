@@ -8,19 +8,19 @@ definitions for HELTEC_V3
 #include <configuration_global.h>
 
 // HELTEC_V3 specific config
-#define MODUL_HARDWARE HELTEC_V3
+#define MODUL_HARDWARE HELTEC_STICK_V3
 #define RF_FREQUENCY 433.175000 // 432.900000   // Hz
 #define LORA_APRS_FREQUENCY 433.775000 // 432.900000   // Hz
 #define SX1262_V3
 #define RX_TIMEOUT_VALUE 0      // continous rx with 0
 #define ENABLE_GPS
-#define ENABLE_BMX280
-#define ENABLE_BMX680
-#define ENABLE_MCP23017
-#define ENABLE_MC811
+//#define ENABLE_BMX280
+//#define ENABLE_BMX680
+//#define ENABLE_MCP23017
+//#define ENABLE_MC811
 //I2C fault #define ENABLE_INA226
-#define ENABLE_RTC
-#define ENABLE_SOFTSER
+//#define ENABLE_RTC
+// #define ENABLE_SOFTSER
 #define TX_POWER_MAX 22  // max 22dBm
 #define TX_POWER_MIN 2
 #define LORA_PREAMBLE_LENGTH DEFAULT_PREAMPLE_LENGTH  // Same for Tx and Rx

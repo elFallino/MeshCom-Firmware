@@ -113,12 +113,12 @@ void init_flash(void)
     snprintf(meshcom_settings.node_mcp17t[15], sizeof(meshcom_settings.node_mcp17t[15]),"%s", strVar.c_str());
 
 	// GM Fields
-    meshcom_settings.node_gcb[0] = preferences.getInt("node_gcb0");
-    meshcom_settings.node_gcb[1] = preferences.getInt("node_gcb1");
-    meshcom_settings.node_gcb[2] = preferences.getInt("node_gcb2");
-    meshcom_settings.node_gcb[3] = preferences.getInt("node_gcb3");
-    meshcom_settings.node_gcb[4] = preferences.getInt("node_gcb4");
-    meshcom_settings.node_gcb[5] = preferences.getInt("node_gcb5");
+    meshcom_settings.node_gcb[0] = preferences.getInt("node_gcb0", 0);
+    meshcom_settings.node_gcb[1] = preferences.getInt("node_gcb1", 0);
+    meshcom_settings.node_gcb[2] = preferences.getInt("node_gcb2", 0);
+    meshcom_settings.node_gcb[3] = preferences.getInt("node_gcb3", 0);
+    meshcom_settings.node_gcb[4] = preferences.getInt("node_gcb4", 0);
+    meshcom_settings.node_gcb[5] = preferences.getInt("node_gcb5", 0);
 
     meshcom_settings.node_country = preferences.getInt("node_ctry");    // 0...EU  1...UK, 2...IT, 3...US, ..... 18...868, 19...915
 
@@ -185,13 +185,6 @@ void init_flash(void)
 
     meshcom_settings.node_analog_batt_faktor = preferences.getFloat("node_bfakt", 0.0);
 
-    meshcom_settings.node_wifi_power = preferences.getInt("node_wifip", 60);
-
-    strVar = preferences.getString("node_ucall", "none");
-    snprintf(meshcom_settings.node_lora_call, sizeof(meshcom_settings.node_lora_call), "%s", strVar.c_str());
-
-    meshcom_settings.node_analog_alpha = preferences.getFloat("node_aak", 0.0);
-    
     #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
     meshcom_settings.node_map = preferences.getInt("node_map", 0);
     meshcom_settings.node_audio_start = preferences.getString("node_audstart", "/");
@@ -199,11 +192,19 @@ void init_flash(void)
     meshcom_settings.node_keyboardlock = preferences.getBool("node_kblock", false);
     meshcom_settings.node_backlightlock = preferences.getBool("node_bllock", false);
     meshcom_settings.node_modus = preferences.getInt("node_modus", 0);
-    #endif
-
-    #if defined(BOARD_T_DECK) || defined (BOARD_T_DECK_PLUS)
     meshcom_settings.node_mute = preferences.getBool("node_mute", false);
     #endif
+
+    meshcom_settings.node_wifi_power = preferences.getInt("node_wifip", 60);
+
+    strVar = preferences.getString("node_ucall", "none");
+    snprintf(meshcom_settings.node_lora_call, sizeof(meshcom_settings.node_lora_call), "%s", strVar.c_str());
+
+    meshcom_settings.node_analog_alpha = preferences.getFloat("node_aak", 0.0);
+    meshcom_settings.node_analog_slope = preferences.getFloat("node_aslo", 1.0);
+    meshcom_settings.node_analog_offset = preferences.getFloat("node_aoff", 0.0);
+    meshcom_settings.node_analog_atten = preferences.getFloat("node_atten", 0.0);
+    
 }
 
 void save_settings(void)
@@ -390,9 +391,6 @@ void save_settings(void)
     preferences.putBool("node_kblock", meshcom_settings.node_keyboardlock);
     preferences.putBool("node_bllock", meshcom_settings.node_backlightlock);
     preferences.putInt("node_modus", meshcom_settings.node_modus);
-    #endif
-    
-    #if defined(BOARD_T_DECK) || defined (BOARD_T_DECK_PLUS)
     preferences.putBool("node_mute", meshcom_settings.node_mute);
     #endif 
 
@@ -402,6 +400,9 @@ void save_settings(void)
     preferences.putString("node_ucall", strVar);
     
     preferences.putFloat("node_aak", meshcom_settings.node_analog_alpha);
+    preferences.putFloat("node_aslo", meshcom_settings.node_analog_slope);
+    preferences.putFloat("node_aoff", meshcom_settings.node_analog_offset);
+    preferences.putFloat("node_atten", meshcom_settings.node_analog_atten);
 
     preferences.end();
 

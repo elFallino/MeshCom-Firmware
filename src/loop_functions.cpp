@@ -20,6 +20,8 @@
 #include <t-deck/lv_obj_functions.h>
 #endif 
 
+#include "tft_display_functions.h"
+
 // TinyGPS
 extern TinyGPSPlus tinyGPSPLus;
 
@@ -137,12 +139,31 @@ String strSOFTSERAPP_NAME = "";  // Name der Messstelle
 int iNextTelemetry=0;
 String strTelemetry="";
 
+// ANALOG values
+unsigned long analog_oversample_timer = 0;
+// ADC-filtering variables
+uint16_t ADCraw = 0;
+float ADCalpha = 0.1;
+float ADCexp1 = 0.0;
+float ADCexp1pre = 0.0;
+float ADCexp12 = 0.0;
+float ADCexp12pre = 0.0;
+float ADCexp2 = 0.0;
+
+// same set of variables for BATT
+float BATTalpha = 0.1;
+float BATTexp1 = 0.0;
+float BATTexp1pre = 0.0;
+float BATTexp12 = 0.0;
+float BATexp12pre = 0.0;
+float BATexp2 = 0.0;
+
 // common variables
 char msg_text[MAX_MSG_LEN_PHONE * 2] = {0};
 
 unsigned int _GW_ID = 0x12345678; // ID of our Node
 
-#ifdef BOARD_E290
+#if defined (BOARD_E290)
 #include "heltec-eink-modules.h"
 
 EInkDisplay_VisionMasterE290 e290_display;
@@ -155,13 +176,17 @@ EInkDisplay_VisionMasterE290 e290_display;
 
 int dzeile[6] = {16, 41, 61, 81, 101, 121};
 
-#else
-
-#ifdef BOARD_TBEAM_V3
+#elif defined (BOARD_TBEAM_V3)
 int dzeile[6] = {11, 24, 34, 44, 54, 64};
+#elif defined (BOARD_STICK_V3)
+int dzeile[6] = {42, 52, 62, 0, 0, 0};
 #else
 int dzeile[6] = {8, 21, 31, 41, 51, 61};
 #endif
+
+#if !defined (BOARD_E290) && !defined (BOARD_TRACKER) && !defined (BOARD_T_DECK) && !defined (BOARD_T_DECK_PLUS)
+
+#include <U8g2lib.h>
 
 U8G2 *u8g2;
 
@@ -169,6 +194,9 @@ U8G2 *u8g2;
     U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2_1(U8G2_R0, 16, 15, 4);
     U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2_2(U8G2_R0, 16, 15, 4);
 #elif defined(BOARD_HELTEC_V3)
+    U8G2_SSD1306_128X64_NONAME_1_SW_I2C u8g2_1(U8G2_R0, 18, 17, 21);
+    U8G2_SH1106_128X64_NONAME_1_SW_I2C u8g2_2(U8G2_R0, 18, 17, 21);
+#elif defined(BOARD_STICK_V3)
     U8G2_SSD1306_128X64_NONAME_1_SW_I2C u8g2_1(U8G2_R0, 18, 17, 21);
     U8G2_SH1106_128X64_NONAME_1_SW_I2C u8g2_2(U8G2_R0, 18, 17, 21);
 #elif defined(BOARD_RAK4630)
@@ -258,6 +286,7 @@ uint32_t posinfo_age=0;
 bool pos_shot = false;
 bool wx_shot = false;
 int no_gps_reset_counter = 0;
+unsigned int gps_refresh_intervall = 10;    // Sekunden
 
 // Loop timers
 unsigned long posinfo_timer = 0;    // we check periodically to send GPS
@@ -505,10 +534,18 @@ int esp32_isSSD1306(int address)
 {
     byte buffer[1];
 
-    #ifdef BOARD_HELTEC_V3
-        return false;
+    #if defined (BOARD_HELTEC_V3)
+        return 1;
     #endif
         
+    #if defined (BOARD_STICK_V3)
+        return 1;
+    #endif
+
+    #if defined (BOARD_TRACKER)
+        return 1;
+    #endif
+
     TwoWire *w = NULL;
 
     w = &Wire;
@@ -544,9 +581,9 @@ int esp32_isSSD1306(int address)
     // 0x28 == T-BEAM 1.3" SUPREME 1306
 
     // 0x03 == T-BEAM 0.9"
-    // 0x07 == T-LORA 0.9! type 1
+    // 0x07 == T-LORA 0.9! type 2
     // 0x07 == T-LORA 0.9" type 2
-    // 0x09 == HELTEC V3 type 1
+    // 0x09 == HELTEC V3 type 2
     // 0x3F == HELTEC V3 type 2
 
     // check 1.3"
@@ -571,14 +608,16 @@ void E290DisplayUpdate()
 
 void sendDisplay1306(bool bClear, bool bTransfer, int x, int y, char *text)
 {
-    #ifndef BOARD_E290
+    #if !defined (BOARD_T_DECK)  && !defined (BOARD_T_DECK_PLUS)
+
+    #if !defined (BOARD_E290) && !defined (BOARD_TRACKER)
         if(u8g2 == NULL)
             return;
     #endif
 
 	if(bClear || (x == 0 && y== 0) || (x == 0 && memcmp(text, "#F", 2) == 0))
     {
-        #ifdef BOARD_E290
+        #if defined (BOARD_E290)
             e290_display.clearMemory();
 
         	if(memcmp(text, "#F", 2) == 0)
@@ -589,6 +628,7 @@ void sendDisplay1306(bool bClear, bool bTransfer, int x, int y, char *text)
             e290_display.fastmodeOn();
             
             e290_display.setFont(&FreeMonoBold12pt7b);
+        #elif defined(BOARD_TRACKER)
         #else
             u8g2->setFont(u8g2_font_6x10_mf);
         #endif
@@ -627,7 +667,7 @@ void sendDisplay1306(bool bClear, bool bTransfer, int x, int y, char *text)
     if(bTransfer)
     {
         //Serial.println("Transfer");
-        #ifdef BOARD_E290
+        #if defined BOARD_E290
             if(pageLineAnz > 0)
             {
                 for(int its=0;its<pageLineAnz;its++)
@@ -683,6 +723,100 @@ void sendDisplay1306(bool bClear, bool bTransfer, int x, int y, char *text)
                     e290_display.update();
             }
             
+        #elif defined (BOARD_TRACKER)
+
+        if(pageLineAnz > 0)
+        {
+            int ianz=0;
+
+            String strLine[7];
+
+            for(int its=0;its<pageLineAnz;its++)
+            {
+                // Save last Text (init)
+                if(iDisplayType == 0 && bNeu)
+                {
+                    pageLastLineAnz[pageLastPointer] = pageLineAnz;
+                    pageLastLine[pageLastPointer][its][0] = pageLine[its][0];
+                    pageLastLine[pageLastPointer][its][1] = pageLine[its][1];
+                    pageLastLine[pageLastPointer][its][2] = pageLine[its][2];
+                    memcpy(pageLastText[pageLastPointer][its], pageText[its], 25);
+                }
+
+                if(memcmp(pageText[its], "#L", 2) != 0)
+                {
+                    strLine[ianz] = pageText[its];
+                    ianz++;
+                }
+            }
+
+            displayTFT(strLine[0], strLine[1], strLine[2], strLine[3], strLine[4], strLine[5], 0);
+        }
+
+        #elif defined (BOARD_STICK_V3)
+
+        u8g2->firstPage();
+        do
+        {
+            if(pageLineAnz > 0)
+            {
+                int inz=0;
+                
+                u8g2->setFont(u8g2_font_6x10_tf);
+
+                for(int its=0;its<pageLineAnz;its++)
+                {
+                    // Save last Text (init)
+                    if(iDisplayType == 0 && bNeu)
+                    {
+                        pageLastLineAnz[pageLastPointer] = pageLineAnz;
+                        pageLastLine[pageLastPointer][its][0] = pageLine[its][0];
+                        pageLastLine[pageLastPointer][its][1] = pageLine[its][1];
+                        pageLastLine[pageLastPointer][its][2] = pageLine[its][2];
+                        memcpy(pageLastText[pageLastPointer][its], pageText[its], 25);
+                    }
+
+                    char ptext[30] = {0};
+                    pageText[its][pageLine[its][2]] = 0x00;
+                    
+                    if(memcmp(pageText[its], "#L", 2) == 0)
+                    {
+                        //u8g2->drawHLine(pageLine[its][0], pageLine[its][1], 120);
+                    }
+                    else
+                    {
+                        if(its == 0)
+                        {
+                            if(memcmp(pageText[its], "GM", 2) == 0 || pageText[its][0] == '4')
+                                snprintf(ptext, sizeof(ptext), "%-10.10s", pageText[its]+6);
+                            else
+                                snprintf(ptext, sizeof(ptext), "%-10.10s", pageText[its]);
+                        }
+                        else
+                        {
+                            if(memcmp(pageText[its], "LAT:", 4) == 0)
+                                snprintf(ptext, sizeof(ptext), "%-4.4s %-5.5s", pageText[its]+5, pageText[its+1]+4);
+                            else
+                            if(pageText[its][5] == ':')
+                                snprintf(ptext, sizeof(ptext), "%-10.10s", pageText[its]+7);
+                            else
+                                snprintf(ptext, sizeof(ptext), "%-10.10s", pageText[its]);
+                        }
+
+                        if(pageLine[its][1] >= 0)
+                        {
+                            if(dzeile[inz] > 0)
+                                u8g2->drawStr(36, dzeile[inz], ptext);
+                        }
+                        
+                        inz++;
+                    }
+                }
+
+            }
+
+        } while (u8g2->nextPage());
+
         #else
         
         u8g2->firstPage();
@@ -734,6 +868,8 @@ void sendDisplay1306(bool bClear, bool bTransfer, int x, int y, char *text)
             pageLastLineAnz[pageLastPointer] = 0;   // nächsten Ringplatz frei machen
         }
     }
+
+    #endif
 }
 
 void sendDisplayHead(bool bInit)
@@ -868,12 +1004,13 @@ void sendDisplayTime()
             pagePointer=PAGE_MAX-1;
     }
 
-    #ifndef BOARD_E290
+    #if !defined (BOARD_E290) && !defined (BOARD_TRACKER) && !defined (BOARD_T_DECK)  && !defined (BOARD_T_DECK_PLUS)
+
         if(u8g2 == NULL)
             return;
     #endif
 
-    #ifdef BOARD_E290
+    #if defined (BOARD_E290) || defined (BOARD_TRACKER) || defined (BOARD_T_DECK)  || defined (BOARD_T_DECK_PLUS)
         return;
     #endif
 
@@ -914,7 +1051,7 @@ void sendDisplayTime()
     pageLine[0][0] = 3;
     pageLine[0][1] = dzeile[0];
 
-    #ifndef BOARD_E290
+    #if !defined (BOARD_E290) && !defined (BOARD_TRACKER)
         sendDisplay1306(false, true, 3, dzeile[0], print_text);
     #endif
 
@@ -1015,16 +1152,19 @@ void mainStartTimeLoop()
                 if(bBMEON || bBMPON)
                 {
                     iDisplayChange++;
-                    if(iDisplayChange > 9)
+                    if(iDisplayChange > 15)
                         iDisplayChange=1;
                 }
 
                 if(bDisplayTrack)
                 {
-                    if(iDisplayChange > 5)
-                        sendDisplayWX(); // Show WX
-                    else
-                        sendDisplayTrack(); // Show Track
+                    if(DisplayOffWait == 0)
+                    {
+                        if(iDisplayChange > 10)
+                            sendDisplayWX(); // Show WX
+                        else
+                            sendDisplayTrack(); // Show Track
+                    }
                 }
                 else
                 {
@@ -1184,7 +1324,7 @@ void sendDisplayText(struct aprsMessage &aprsmsg, int16_t rssi, int8_t snr)
             bPosDisplay=false;
     }
 
-    if(bSetDisplay || pageHold > 0)
+    if(bSetDisplay)
         return;
 
     bSetDisplay=true;
@@ -1411,37 +1551,6 @@ void initAnalogPin()
         }
     }
     
-    #endif
-}
-
-void checkAnalogValue()
-{
-    #if defined (ANALOG_PIN)
-
-    if(bAnalogCheck)
-    {
-        int ANAGPIO = meshcom_settings.node_analog_pin;
-        if(meshcom_settings.node_analog_pin <= 0 || meshcom_settings.node_analog_pin >= 99)
-            ANAGPIO = ANALOG_PIN;
-
-        #if defined(BOARD_E22_S3)
-        float raw = (float)(analogReadMilliVolts(ANAGPIO)); // some ESP32 have ADC facto5ry-cal
-        #else
-        float raw = (float)(analogRead(ANAGPIO));
-        #endif
-
-        fAnalogValue = raw  * meshcom_settings.node_analog_faktor;
-        
-        if(bDEBUG && bDisplayInfo)
-        {
-            Serial.printf("%s [ANALOG]...GPIO%i %.0f * %.4f = %.2f\n", getTimeString().c_str(), ANAGPIO, raw, meshcom_settings.node_analog_faktor, fAnalogValue);
-        }
-    }
-    else
-    {
-        fAnalogValue = 0.0;
-    }
-
     #endif
 }
 
@@ -1785,12 +1894,6 @@ void printBuffer_ack(char *msgSource, uint8_t payload[UDP_TX_BUF_SIZE+10], int8_
 
 void sendMessage(char *msg_text, int len)
 {
-    if(len < 1 || len > 160)
-    {
-        Serial.printf("sendMessage wrong text length:%i\n", len);
-        return;
-    }
-
     if(memcmp(msg_text, "-", 1) == 0)
     {
         if(bDisplayInfo)
@@ -1802,12 +1905,25 @@ void sendMessage(char *msg_text, int len)
 
     uint8_t ispos = 0;
 
+    bool bConsoleText = false;
+
     if(msg_text[0] == ':')
     {
         if(msg_text[1] == ':')
+        {
             ispos=2;
+            bConsoleText = true;
+        }
         else
-            ispos=1;
+        {
+            ispos=1;    // WEBService only
+        }
+    }
+
+    if((len-ispos) < 1 || (len-ispos) > 160)
+    {
+        Serial.printf("sendMessage wrong text length:%i\n", len-ispos);
+        return;
     }
 
     String strDestinationCall = "*";
@@ -1965,6 +2081,12 @@ void sendMessage(char *msg_text, int len)
     // Extern Server
     if(bEXTUDP)
         sendExtern(true, (char*)"node", msg_buffer, aprsmsg.msg_len);
+
+                        
+    // wenn text via Console kommt auch an BLE bzw. WEBService senden
+    if(bConsoleText)
+        addBLEOutBuffer(msg_buffer, aprsmsg.msg_len);
+
 }
 
 String PositionToAPRS(bool bConvPos, bool bWeather, bool bFuss, double plat, char lat_c, double plon, char lon_c, int alt,  float press, float hum, float temp, float temp2, float gasres, float co2, int qfe, float qnh)
@@ -2878,20 +3000,27 @@ unsigned int setSMartBeaconing(double dlat, double dlon)
             gps_send_rate = POSINFO_INTERVAL;
     }
     else
-    if(posinfo_distance < 200)  // zu fuss > 3 km/h  < 8 km/h
+    // distanz in m pro gps_refresh_intervall (default 5) sekunden
+    // Bewegung                         GPS je 5 sec
+    // fuss          1.3 m/s ca. 4 m     20 m           
+    // fahrad        4.0 m/s ca. 12 m    60 m
+    // auto stadt   14.0 m/s ca. 42 m   210 m
+    // auto land    22.0 m/s ca. 66 m   330 m
+    // autobahn     36.0 m/s ca. 100 m  500 m
+    if(posinfo_distance < 100)  //  ... alle 100 m
         gps_send_rate = 30; // seconds
     else
-    if(posinfo_distance < 800)  // rad < 40 km/h
+    if(posinfo_distance < 200)  // rad < 40 km/h
         gps_send_rate = 60; // seconds
     else
-    if(posinfo_distance < 3000)  // auto stadt < 80 km/h
-        gps_send_rate = 120; // seconds
+    if(posinfo_distance < 1000)
+        gps_send_rate = 120; // auto > 80 km/h
     else
-        gps_send_rate = 180; // auto > 80 km/h
+        gps_send_rate = 180; // auto stadt < 80 km/h
 
     int direction_diff=0;
 
-    if(posinfo_distance > 150 && bDisplayTrack)  // meter
+    if(posinfo_distance > 100 && bDisplayTrack)  // meter
     {
         direction_diff=GetHeadingDifference((int)posinfo_last_direction, (int)posinfo_direction);
 

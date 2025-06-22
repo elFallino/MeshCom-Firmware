@@ -47,8 +47,10 @@
 #include <clock.h>
 #include <onewire_functions.h>
 #include <onebutton_functions.h>
+#include <adc_functions.h>
 #include <lora_setchip.h>
 #include "esp32_functions.h"
+#include "tft_display_functions.h"
 
 #ifndef BOARD_TLORA_OLV216
     #include <lora_setchip.h>
@@ -405,9 +407,9 @@ uint8_t dmac[6] = {0};
 
 unsigned long gps_refresh_timer = 0;
 unsigned long softser_refresh_timer = 0;
-unsigned long analog_refresh_timer = 0;
 unsigned long rtc_refresh_timer = 0;
 unsigned long pixels_delay = 0;
+unsigned long ble_wait = 0;
 
 bool is_new_packet(uint8_t compBuffer[4]);     // switch if we have a packet received we never saw before RcvBuffer[12] changes, rest is same
 void checkSerialCommand(void);
@@ -466,8 +468,6 @@ void esp32setup()
     Serial.printf("[PSRM]...%d\n", ESP.getFreePsram());
     
     check_efuse();
-
-    initDisplay();
 
     // init nach Reboot
     init_loop_function();
@@ -579,6 +579,19 @@ void esp32setup()
     // Initialize battery reading
 	init_batt();
 
+    #ifdef VEXT_CTRL
+        pinMode(VEXT_CTRL, OUTPUT);
+    #endif
+
+    #ifdef ADC_CTRL
+        pinMode(ADC_CTRL, OUTPUT);
+    #endif
+        
+    #if defined(BOARD_TRACKER)
+        digitalWrite(VEXT_CTRL, HIGH);   // HWT needs this for GPS and TFT Screen
+        digitalWrite(ADC_CTRL, HIGH);
+    #endif
+
     #ifdef LED_PIN
         pixels.begin();
         Serial.println("[INIT]...NEOPIXEL set");
@@ -640,6 +653,10 @@ void esp32setup()
     _GW_ID = getMacAddr();
 
     #ifdef BOARD_HELTEC_V3
+        SPI.begin(RF95_SCK, RF95_MISO, RF95_MOSI, RF95_NSS);
+    #endif
+
+    #ifdef BOARD_STICK_V3
         SPI.begin(RF95_SCK, RF95_MISO, RF95_MOSI, RF95_NSS);
     #endif
 
@@ -726,7 +743,7 @@ void esp32setup()
     //
     ////////////////////////////////////////////////////////////////////
 
-    #if defined(BOARD_E22) || defined(BOARD_E220)  || defined(BOARD_E22_S3)
+    #if defined(BOARD_E22) || defined(BOARD_E220) || defined(BOARD_E22_S3)
         // if RESET Pin is connected
         pinMode(LORA_RST, PULLUP);
         digitalWrite(LORA_RST, LOW);
@@ -737,7 +754,24 @@ void esp32setup()
         radio.setRfSwitchPins(E22_RXEN, E22_TXEN);
     #endif
 
-    startDisplay((char*)"...starting now", (char*)"@by icssw.org", (char*)"OE1KBC, OE1KFR");
+    #ifdef HAS_TFT
+        initTFT();
+    #else
+        initDisplay();
+    #endif
+
+    #if defined(BOARD_HELTEC_V3) || defined(BOARD_STICK_V3)
+    delay(500);
+    #endif
+
+    #ifdef HAS_TFT
+        char cvers[22];
+        sprintf(cvers, "  FW %s/%-1.1s <%s>", SOURCE_VERSION, SOURCE_VERSION_SUB, getCountry(meshcom_settings.node_country).c_str());
+        String  version = cvers;
+        displayTFT(" MeshCom 4.0 ", version, "  ...starting now", "  @by icssw.org", "  OE1KBC, OE1KFR", 5000);
+    #else
+        startDisplay((char*)"...starting now", (char*)"@by icssw.org", (char*)"OE1KBC, OE1KFR");
+    #endif
 
     //LORA CHIP present
     bRadio = false;
@@ -778,12 +812,14 @@ void esp32setup()
 
     Serial.print(F(" Initializing ... "));
 
-    int state = RADIOLIB_ERR_UNKNOWN;
-    
+    #ifdef BOARD_TRACKER
+        SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN);
+    #endif
+
     #if defined(BOARD_E220)
-        state = radio.begin(434.0F, 125.0F, 9, 7, SYNC_WORD_SX127x, 10, LORA_PREAMBLE_LENGTH, /*float tcxoVoltage = 0*/ 1.6F, /*bool useRegulatorLDO = false*/ false);
+        int state = radio.begin(434.0F, 125.0F, 9, 7, SYNC_WORD_SX127x, 10, LORA_PREAMBLE_LENGTH, /*float tcxoVoltage = 0*/ 1.6F, /*bool useRegulatorLDO = false*/ false);
     #else
-        state = radio.begin();
+        int state = radio.begin();
     #endif
     
     if (state == RADIOLIB_ERR_NONE)
@@ -993,7 +1029,9 @@ void esp32setup()
             
             //KBC 0801 radio.setPacketSentAction(setFlagSent);
 
-            //KBC 0801 radio.setDio1Action(setFlagSent);
+            #if defined (BOARD_TRACKER)
+                radio.setDio1Action(setFlagSent);
+            #endif
 
             // start scanning the channel
             Serial.print(F("[LoRa]...Starting to listen ... "));
@@ -1179,7 +1217,7 @@ void esp32setup()
 void esp32_write_ble(uint8_t confBuff[300], uint8_t conf_len)
 {
     if(bBLEDEBUG)
-        Serial.println("[LOOP] WRITE BLE");
+        Serial.printf("[LOOP] <%lu> WRITE BLE\n", millis());
 
     pTxCharacteristic->setValue(confBuff, conf_len);
     pTxCharacteristic->notify();
@@ -1189,6 +1227,8 @@ void esp32_write_ble(uint8_t confBuff[300], uint8_t conf_len)
 
 void esp32loop()
 {
+    loop_onebutton();
+
     #ifdef LED_PIN
         if(bLED_GREEN || bLED_RED || bLED_BLUE || bLED_ORANGE || bLED_WEISS || bLED_CLEAR || bLED_DELAY)
         {
@@ -1680,18 +1720,8 @@ void esp32loop()
         }
     #endif
 
-    loop_onebutton();
-
     #if defined (ANALOG_PIN)
-        if(bAnalogCheck)
-        {
-            if ((analog_refresh_timer + (ANALOG_REFRESH_INTERVAL * 1000)) < millis())
-            {
-                checkAnalogValue();
-
-                analog_refresh_timer = millis();
-            }
-        }
+        loop_ADCFunctions();    // OE3WAS
     #endif
 
     // BLE
@@ -1758,20 +1788,33 @@ void esp32loop()
             if(millis() < config_to_phone_prepare_timer + 3000)
                 iPhoneState = 0;
 
-            if (iPhoneState > 3)   // only every 3 times of mainloop send to phone
+            if (iPhoneState > 3)   // only every 3 times of mainloop send to phone - main loop has no additional delay anymore! 14.06.2025
             {
                 // prepare JSON config to phone after BLE connection
                 // send JSON config to phone after BLE connection
+                // wait at least 300ms between sending messages
                 if (ComToPhoneWrite != ComToPhoneRead)
                 {
-                    sendComToPhone();   
+                    // check every 300 ms to send to phone
+                    if ((ble_wait + 300) < millis())
+                    {
+                        sendComToPhone();
+
+                        ble_wait = millis();
+                    }
                 }
                 else
                 {
                     // check if we have messages for BLE to send
                     if (toPhoneWrite != toPhoneRead)
                     {
-                        sendToPhone();   
+                        // wait for each message to send to phone
+                        if ((ble_wait + 400) < millis())
+                        {
+                            sendToPhone();
+
+                            ble_wait = millis();
+                        }
                     }
                 }
 
@@ -1791,7 +1834,13 @@ void esp32loop()
     }
 
     // gps refresh every 10 sec
-    if ((gps_refresh_timer + (GPS_REFRESH_INTERVAL * 1000)) < millis())
+    unsigned long gps_refresh_intervall = GPS_REFRESH_INTERVAL;
+
+    // TRACK ON
+    if(bDisplayTrack)
+        gps_refresh_intervall = 5;
+
+    if ((gps_refresh_timer + (gps_refresh_intervall * 1000)) < millis())
     {
         // get i/o state
         if(loopMCP23017())
@@ -1820,8 +1869,6 @@ void esp32loop()
         else
         {
             #if defined (GPS_L76K)
-                igps = loopL76KGPS();
-            #elif defined (GPS_L76K_TDECK)
                 igps = loopL76KGPS();
             #else
                 igps = getGPS();
@@ -1984,8 +2031,7 @@ void esp32loop()
                 
                 if(bDisplayCont)
                 {
-            		Serial.print("[readBatteryVoltage]...");
-                    Serial.printf("volt %.2f proz %i max_batt %.3f\n", global_batt/1000., global_proz, meshcom_settings.node_maxv);
+                    Serial.printf("[readBatteryVoltage]...volt %.2f proz %i max_batt %.3f\n", global_batt/1000., global_proz, meshcom_settings.node_maxv);
                 }
 
                 #if defined(BOARD_T_DECK) || defined(BOARD_T_DECK_PLUS)
@@ -2376,7 +2422,9 @@ void checkSerialCommand(void)
                 }
 
                 if(strText.startsWith("::"))
-                    sendMessage(msg_buffer+2, inext-2);
+                {
+                    sendMessage(msg_buffer, inext);
+                }
                 else
                     if(strText.startsWith("--"))
                         commandAction(msg_buffer, isPhoneReady, false);

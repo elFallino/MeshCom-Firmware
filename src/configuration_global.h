@@ -1,5 +1,5 @@
 #define SOURCE_VERSION "4.34"
-#define SOURCE_VERSION_SUB "y"
+#define SOURCE_VERSION_SUB "z"
 
 //Hardware Types
 #define TLORA_V2 1
@@ -15,6 +15,8 @@
 #define HELTEC_V1 11
 #define TBEAM_AXP2101 12
 #define EBYTE_E22 39
+#define HELTEC_TRACKER 41
+#define HELTEC_STICK_V3 42
 #define HELTEC_V3 43
 #define HELTEC_E290 44
 #define TBEAM_1262 45
