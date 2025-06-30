@@ -1377,6 +1377,15 @@ void sub_page_info()
 
 void sub_page_mcp23017()
 {
+    char onclick[100];
+    char caption[40];
+    char id[40];
+    char value[40];
+
+    uint16_t t_io = meshcom_settings.node_mcp17io;
+    uint16_t t_out = meshcom_settings.node_mcp17out;
+    uint16_t t_in = meshcom_settings.node_mcp17in;
+
     _create_meshcom_subheader("MCP23017 Status");
     web_client.println("<div id=\"content_inner\">");
 
@@ -1390,13 +1399,7 @@ void sub_page_mcp23017()
     web_client.println("</colgroup>");
     web_client.println("<thead><tr class=\"font-bold\"><td>PORT</td><td>In/Out</td><td>Name</td><td>Status</td><td>Set</td></tr></thead>");
 
-    //web_client.println("<table class=\"table\">");
 
-    //web_client.printf("<tr><th>PORT</th><th>MCP-23017</th><th>%s</th><th>STATUS</th><th>SET</th></tr>\n", (bMCP23017 ? "active" : "offline"));
-
-    uint16_t t_io = meshcom_settings.node_mcp17io;
-    uint16_t t_out = meshcom_settings.node_mcp17out;
-    uint16_t t_in = meshcom_settings.node_mcp17in;
 
     for (int io = 0; io < 16; io++)
     {
@@ -1419,18 +1422,6 @@ void sub_page_mcp23017()
             cAB = 'A';
             iAB = io;
         }
-
-        
-        //web_client.printf("<td><a href=\"/mcptype/%s/%c%i\"><button class=\"button button2\"<b>%s</b></button></a></td>", (bOut ? "OUT" : "IN"), cAB, iAB, (bOut ? "OUT" : "IN"));
-        
-        //web_client.printf("<td><a href=\"/mcptype/%s/%c%i\">", (bOut ? "OUT" : "IN"), cAB, iAB);
-        //String dir = bOut ?"out":"in";
-        //_create_button_component(false, "", String("setvalue(\"mcpio\", \"")+String(dir)+String(cAB)+String(iAB)+String("\")"), dir);
-        
-        char onclick[100];
-        char caption[5];
-        char id[40];
-        char value[40];
 
         web_client.printf("<tr><td>[%c%i]</td><td>", cAB, iAB);
         snprintf(onclick, 100, "setvalue('mcpio%c%i','%s')", cAB, iAB, bOut ?"out":"in");
@@ -1455,12 +1446,6 @@ void sub_page_mcp23017()
                 snprintf(caption, 4,  "%s", (bOutValue ? "ON" : "OFF"));
                 uic_button(&web_client, onclick, caption);
                 web_client.println("</td></tr>");
-            /*
-            if (bOutValue)
-                web_client.printf("<td>%s</td><td><a href=\"/mcp/off/%c%i\"><button class=\"button button2\"<b>ON</b></button></a></td></tr>\n", (bOutValue ? "OFF " : "ON  "), cAB, iAB);
-            else
-                web_client.printf("<td>%s</td><td><a href=\"/mcp/on/%c%i\"><button class=\"button button2\"<b>OFF</b></button></a></td></tr>\n", (bOutValue ? "OFF " : "ON  "), cAB, iAB);
-            */
         }
         else
         {
@@ -1475,7 +1460,11 @@ void sub_page_mcp23017()
         t_in >>= 1;
     }
 
-    web_client.println("</table></div>");
+    web_client.println("<tr><td rowspan=\"5\">");
+    snprintf(onclick, 100, "setvalue('mcpclear','')");
+    snprintf(caption, 10,  "%s", "clear all");
+    uic_button(&web_client, onclick, caption);
+    web_client.println("</td></tr></table></div>");
 }
 
 /**

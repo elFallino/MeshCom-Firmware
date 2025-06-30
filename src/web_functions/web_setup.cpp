@@ -458,6 +458,22 @@ void webSetup_setParam(setupStruct *setupData){
         return;
     }
 
+        /// ###################################### MCPNAME ######################################
+    if(setupData->paramName.substring(0,8).equals("mcpclear")) {
+
+        snprintf(message_text, sizeof(message_text), "--setio clear");
+        commandAction(message_text, bPhoneReady);
+
+        save_settings();
+
+        setupData->returnCode = WS_RETURNCODE_OKAY;
+        setupData->returnValue = "";
+
+        save_settings();
+
+        return;
+    }
+
 
 
 
