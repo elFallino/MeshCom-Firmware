@@ -1448,8 +1448,6 @@ void sub_page_mcp23017()
 
         web_client.println("</td>");
 
-        bOut=true;
-        bOutValue=true;
         if (bOut)
         {
                 web_client.printf("<td>%s</td><td>", (bOutValue ? "OFF" : "ON"));

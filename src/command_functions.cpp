@@ -2876,7 +2876,11 @@ void commandAction(char *umsg_text, bool ble)
                 }
         
                 return;
+            } else {
+                if(bDEBUG)Serial.println("Selected port not set as output");
             }
+        } else {
+            if(bDEBUG)Serial.println("Selected port out of range");
         }
     }
     else
