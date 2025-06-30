@@ -13,10 +13,19 @@
 #include <time_functions.h>
 #include <spectral_scan.h>
 
+#include "web_UIComponents.h"
 #include "web_setup.h"
 #include "web_nodefunctioncalls.h"
 
-#ifdef ESP32
+#include "web_commonServer.h"
+
+
+CommonWebServer web_server(80);
+CommonWebClient web_client;
+
+void web_client_html(CommonWebClient web_client);
+
+/*#ifdef ESP32
 // WIFI
 #include <WiFi.h>
 #include <WiFiClient.h>
@@ -31,7 +40,9 @@ void web_client_html(WiFiClient web_client);
 EthernetServer web_server(80);
 EthernetClient web_client;
 void web_client_html(EthernetClient web_client);
-#endif
+#endif*/
+
+
 
 String web_header;
 unsigned long web_currentTime = millis(); // Current time
@@ -76,17 +87,18 @@ void startWebserver()
     if (!MDNS.begin(meshcom_settings.node_call))
     {
         Serial.print(getTimeString());
-        Serial.println(" Error setting up MDNS responder!");
+        Serial.println("[Web]...Error setting up MDNS responder!");
         return;
     }
 
     if (bDEBUG)
     {
         Serial.print(getTimeString());
-        Serial.println(" mDNS responder started");
+        Serial.println("[Web]...mDNS responder started");
     }
 
     web_server.begin();
+
 #else
     if (web_server.server_port[1] == 0)
     {
@@ -115,6 +127,7 @@ void stopWebserver()
  */
 void loopWebserver()
 {
+
     if (!bweb_server_running)
         return;
 
@@ -130,6 +143,8 @@ void loopWebserver()
         return;
     }
 
+
+    
     web_client = web_server.available(); // Create a client connection.
 
     // HTML Page formating
@@ -138,27 +153,30 @@ void loopWebserver()
         // If a new client connects,
         web_client_html(web_client);
     }
+
     // Close the connection
     web_client.stop();
+
+
+    // HTML Page formating
+    
 }
 
 /**
  * ###########################################################################################################################
  * Web Client Handler
  */
-#ifdef ESP32
-void web_client_html(WiFiClient web_client)
-#else
-void web_client_html(EthernetClient web_client)
-#endif
+
+void web_client_html(CommonWebClient web_client)
 {
     IPAddress web_ip_now = web_client.remoteIP();
     char c_web_ip_now[20];
     snprintf(c_web_ip_now, sizeof(c_web_ip_now), "%i.%i.%i.%i", web_ip_now[0], web_ip_now[1], web_ip_now[2], web_ip_now[3]);
 
-    if (bDEBUG)
+    if(bDEBUG) {
+        Serial.print("[Web]...Client IP: ");
         Serial.println(web_ip_now);
-
+    }
     bool bPasswordOk = false;
 
     // check password used
@@ -369,6 +387,11 @@ String work_webpage(bool bget_password, int webid)
                             send_http_header(200, RESPONSE_TYPE_TEXT);
                             sub_page_spectrum();
                         }
+                        else if (web_header.indexOf("/?page=mcp23017") >= 0)
+                        { // user requested the path page
+                            send_http_header(200, RESPONSE_TYPE_TEXT);
+                            sub_page_mcp23017();
+                        }
                         else if (web_header.indexOf("/?page=info") >= 0)
                         { // user requested the info page
                             send_http_header(200, RESPONSE_TYPE_TEXT);
@@ -383,7 +406,7 @@ String work_webpage(bool bget_password, int webid)
                         {
                             deliver_scaffold(bget_password);
                         }
-                    } //if (bget_password)
+                    } // if (bget_password)
 
                     web_client.stop();
                 }
@@ -529,6 +552,7 @@ void deliver_scaffold(bool bget_password)
     web_client.println(".font-xlarge {font-size:x-large;}\n");
     web_client.println(".font-bold {font-weight:bold;}\n");
     web_client.println(".no-wrap {white-space:nowrap;}\n");
+    web_client.println(".mw-600 {max-width:600px;}");
 
     // nav-bar definitions
     web_client.println("#nav_layer {height:100%;width:calc(60px*var(--widthfactor));background-color:var(--mcgray);position:fixed !important;overflow:auto;top:0px;}\n");
@@ -620,6 +644,8 @@ void deliver_scaffold(bool bget_password)
     web_client.println("<Button class=\"nav_button\" onclick=\"loadPage('path',this)\"><svg viewBox=\"0 0 16 16\" xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\"><g stroke-width=\"0\"></g><g stroke-linecap=\"round\" stroke-linejoin=\"round\"></g><g><path fill=\"#ffffff\" fill-rule=\"evenodd\" d=\"M13 0a3 3 0 00-1.65 5.506 7.338 7.338 0 01-.78 1.493c-.22.32-.472.635-.8 1.025a1.509 1.509 0 00-.832.085 12.722 12.722 0 00-1.773-1.124c-.66-.34-1.366-.616-2.215-.871a1.5 1.5 0 10-2.708 1.204c-.9 1.935-1.236 3.607-1.409 5.838a1.5 1.5 0 101.497.095c.162-2.07.464-3.55 1.25-5.253.381-.02.725-.183.979-.435.763.23 1.367.471 1.919.756a11.13 11.13 0 011.536.973 1.5 1.5 0 102.899-.296c.348-.415.64-.779.894-1.148.375-.548.665-1.103.964-1.857A3 3 0 1013 0zm-1.5 3a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0z\" clip-rule=\"evenodd\"></path></g></svg></Button>\n");
     web_client.println("<Button class=\"nav_button\" onclick=\"loadPage('rxlog',this)\"><svg viewBox=\"0 0 32 32\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" xmlns:sketch=\"http://www.bohemiancoding.com/sketch/ns\" fill=\"#ffffff\"><g stroke-width=\"0\"></g><g stroke-linecap=\"round\" stroke-linejoin=\"round\"></g><g> <title>book-album</title> <desc>Created with Sketch Beta.</desc><defs></defs><g stroke=\"none\" stroke-width=\"1\" fill=\"none\" fill-rule=\"evenodd\" sketch:type=\"MSPage\"> <g sketch:type=\"MSLayerGroup\" transform=\"translate(-412.000000, -99.000000)\" fill=\"#ffffff\"> <path d=\"M442,124 C442,125.104 441.073,125.656 440,126 C440,126 434.557,127.515 429,128.977 L429,104 L440,101 C441.104,101 442,101.896 442,103 L442,124 L442,124 Z M427,128.998 C421.538,127.53 416,126 416,126 C414.864,125.688 414,125.104 414,124 L414,103 C414,101.896 414.896,101 416,101 L427,104 L427,128.998 L427,128.998 Z M440,99 C440,99 434.211,100.594 428.95,102 C428.291,102.025 427.627,102 426.967,102 C421.955,100.656 416,99 416,99 C413.791,99 412,100.791 412,103 L412,124 C412,126.209 413.885,127.313 416,128 C416,128 421.393,129.5 426.967,131 L428.992,131 C434.612,129.5 440,128 440,128 C442.053,127.469 444,126.209 444,124 L444,103 C444,100.791 442.209,99 440,99 L440,99 Z\" sketch:type=\"MSShapeGroup\"> </path> </g> </g> </g></svg></Button>\n");
     web_client.println("<Button class=\"nav_button\" onclick=\"loadPage('spectrum',this)\"><svg viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><g><path d=\"M13,11v4M9,7v8m8-6v6\" style=\"fill:none;stroke:#ffffff;stroke-linecap:round;stroke-linejoin:round;stroke-width:2;\"></path><path d=\"M3,19H21M5,3V21\" style=\"fill:none;stroke:#ffffff;stroke-linecap:round;stroke-linejoin:round;stroke-width:2;\"></path></g></svg></Button>\n");
+
+    web_client.println("<Button class=\"nav_button\" onclick=\"loadPage('mcp23017',this)\"><svg viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><g><path d=\"M13,11v4M9,7v8m8-6v6\" style=\"fill:none;stroke:#ffffff;stroke-linecap:round;stroke-linejoin:round;stroke-width:2;\"></path><path d=\"M3,19H21M5,3V21\" style=\"fill:none;stroke:#ffffff;stroke-linecap:round;stroke-linejoin:round;stroke-width:2;\"></path></g></svg></Button>\n");
 
     // Setup Button (Image as base64 and split ti several print() so RAK can handle it)
     web_client.print("<Button class=\"nav_button\" onclick=\"loadPage('setup',this)\"><img src=\"data:image/svg+xml;base64,PHN2ZyB2aWV3Qm94PSIwIDAgMjQgMjQiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGcgc3Ryb2tlLXdpZHRoPSIwIj48L2c+PGcgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48L2c+PGc+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMyIgc3Ryb2tlPSIjZmZmZmZmIiBzdHJva2Utd2lkdGg9IjEuNSI+PC9jaXJjbGU+PHBhdGggZD0iTTEzLjc2NTQgMi4xNTIyNEMxMy4zOTc4IDIgMTIuOTMxOSAyIDEyIDJDMTEuMDY4MSAyIDEwLjYwMjIgMiAxMC4yMzQ2IDIuMTUyMjRDOS43NDQ1NyAyLjM1NTIzIDkuMzU1MjIgMi43NDQ1OCA5LjE1MjIzIDMuMjM0NjNDOS4wNTk1NyAzLjQ1ODM0IDkuMDIzMyAzLjcxODUgOS4wMDkxMSA0LjA5Nzk5QzguOTg4MjYgNC42NTU2OCA4LjcwMjI2IDUuMTcxODkgOC4yMTg5NCA1LjQ1MDkzQzcuNzM1NjQgNS43Mjk5NiA3LjE0NTU5IDUuNzE5NTQgNi42NTIxOSA1LjQ1ODc2QzYuMzE2NDUgNS4yODEzIDYuMDczMDEgNS4xODI2MiA1LjgzMjk0IDUuMTUxMDJDNS4zMDcwNCA1LjA4MTc4IDQuNzc1MTggNS4yMjQyOSA0LjM1NDM2IDUuNTQ3MkM0LjAzODc0IDUuNzg5MzggMy44MDU3NyA2LjE5MjkgMy4zMzk4MyA2Ljk5OTkzQzIuODczODkgNy44MDY5NyAyLjY0MDkyIDguMjEwNDggMi41ODg5OSA4LjYwNDkxQz");
@@ -811,7 +837,6 @@ void sub_page_mheard()
     web_client.println(); // The HTTP response ends with another blank line
 }
 
-
 /**
  * ###########################################################################################################################
  * delivers the path-page to be injected into the scaffold
@@ -926,11 +951,11 @@ void sub_page_setup()
     _create_setup_switch_element("volt", "Voltage", "show batt. voltage, not percent", bDisplayVolt);           // create Switch-Element inclucing Label and Description
     _create_setup_switch_element("mesh", "Mesh", "enable mesh/forwarding of received LoRa messages", bMESH);    // create Switch-Element inclucing Label and Description
 
-    //We support OTA only for ESP based devices, not RAK
-    #ifdef ESP32
+// We support OTA only for ESP based devices, not RAK
+#ifdef ESP32
     web_client.println("<span>Reboot into OTA Updater</span>");
     web_client.println("<button onclick=\"if(confirm('Node will reboot to OTA Updater, are you sure?')){callfunction('otaupdate', '');setTimeout(function(){window.location.reload();},10000);}\"><i class=\"btncheckmark\"></i></button>");
-    #endif
+#endif
 
     web_client.println("</div></div>");
 
@@ -940,7 +965,6 @@ void sub_page_setup()
     web_client.println("<span>Open this for network-specific settings.</span>\n");
     web_client.println("<button class=\"cardtoggle\" onclick=\"togglecard(this);\"><i></i></button>\n");
     web_client.println("<div class=\"grid grid3\">");
-
 
     _create_setup_textinput_element("wifissid", "SSID", String(meshcom_settings.node_ssid), "wifi-name", "setssid", 50, false, true);  // create Textinput-Element including Label and Button
     _create_setup_textinput_element("wifipassword", "WiFi Password", String(meshcom_settings.node_pwd), "", "setpwd", 50, true, true); // create Textinput-Element including Label and Button
@@ -984,8 +1008,8 @@ void sub_page_setup()
 
     _create_setup_textinput_element("nametext", "APRS Name", String(meshcom_settings.node_name), "aprsname", "setname", 25, false, false); // create Textinput-Element including Label and Button
     _create_setup_textinput_element("aprstext", "APRS Text", String(meshcom_settings.node_atxt), "aprstext", "atxt", 25, false, false);    // create Textinput-Element including Label and Button
-    _create_setup_textinput_element("aprssymbol", "APRS Symbol", String(meshcom_settings.node_symid), "S", "symid", 1, false, false);        // create Textinput-Element including Label and Button
-    _create_setup_textinput_element("aprsgroup", "APRS Group", String(meshcom_settings.node_symcd), "/", "symcd", 1, false, false);      // create Textinput-Element including Label and Button
+    _create_setup_textinput_element("aprssymbol", "APRS Symbol", String(meshcom_settings.node_symid), "S", "symid", 1, false, false);      // create Textinput-Element including Label and Button
+    _create_setup_textinput_element("aprsgroup", "APRS Group", String(meshcom_settings.node_symcd), "/", "symcd", 1, false, false);        // create Textinput-Element including Label and Button
 
     web_client.println("</div></div>");
 
@@ -1351,6 +1375,111 @@ void sub_page_info()
     web_client.println(); // The HTTP response ends with another blank line
 }
 
+void sub_page_mcp23017()
+{
+    _create_meshcom_subheader("MCP23017 Status");
+    web_client.println("<div id=\"content_inner\">");
+
+    web_client.println("<table class=\"table mw-600\">");
+    web_client.println("<colgroup>");
+    web_client.println("<col style=\"width: 10%;\">");
+    web_client.println("<col style=\"width: 16%;\">");
+    web_client.println("<col style=\"width: 49%;\">");
+    web_client.println("<col style=\"width: 15%;\">");
+    web_client.println("<col style=\"width: 10%;\">");
+    web_client.println("</colgroup>");
+    web_client.println("<thead><tr class=\"font-bold\"><td>PORT</td><td>In/Out</td><td>Name</td><td>Status</td><td>Set</td></tr></thead>");
+
+    //web_client.println("<table class=\"table\">");
+
+    //web_client.printf("<tr><th>PORT</th><th>MCP-23017</th><th>%s</th><th>STATUS</th><th>SET</th></tr>\n", (bMCP23017 ? "active" : "offline"));
+
+    uint16_t t_io = meshcom_settings.node_mcp17io;
+    uint16_t t_out = meshcom_settings.node_mcp17out;
+    uint16_t t_in = meshcom_settings.node_mcp17in;
+
+    for (int io = 0; io < 16; io++)
+    {
+        bool bOut = false;
+        if ((t_io & 0x0001) == 0x0001)
+            bOut = true;
+
+        bool bOutValue = false;
+        if ((t_out & 0x0001) == 0x0001)
+            bOutValue = true;
+
+        bool bInValue = false;
+        if ((t_in & 0x0001) == 0x0001)
+            bInValue = true;
+
+        char cAB = 'B';
+        int iAB = io - 8;
+        if (io < 8)
+        {
+            cAB = 'A';
+            iAB = io;
+        }
+
+        
+        //web_client.printf("<td><a href=\"/mcptype/%s/%c%i\"><button class=\"button button2\"<b>%s</b></button></a></td>", (bOut ? "OUT" : "IN"), cAB, iAB, (bOut ? "OUT" : "IN"));
+        
+        //web_client.printf("<td><a href=\"/mcptype/%s/%c%i\">", (bOut ? "OUT" : "IN"), cAB, iAB);
+        //String dir = bOut ?"out":"in";
+        //_create_button_component(false, "", String("setvalue(\"mcpio\", \"")+String(dir)+String(cAB)+String(iAB)+String("\")"), dir);
+        
+        char onclick[100];
+        char caption[5];
+        char id[40];
+        char value[40];
+
+        web_client.printf("<tr><td>[%c%i]</td><td>", cAB, iAB);
+        snprintf(onclick, 100, "setvalue('mcpio%c%i','%s')", cAB, iAB, bOut ?"out":"in");
+        snprintf(caption, 4, "%s",  bOut ?"out":"in");
+        uic_button(&web_client, onclick, caption);
+        web_client.println("</td><td>");
+
+        snprintf(id, 40, "mcpname%c%i", cAB, iAB);
+        snprintf(value, 100, "%s", meshcom_settings.node_mcp17t[io]);
+        uic_input(&web_client, id, "", value);
+
+        snprintf(onclick, 100, "setvalue('mcpname%c%i', document.getElementById('mcpname%c%i').value)", cAB, iAB, cAB, iAB);
+        snprintf(caption, 4,  "set");
+        uic_button(&web_client, onclick, caption);
+
+        web_client.println("</td>");
+
+        bOut=true;
+        bOutValue=true;
+        if (bOut)
+        {
+                web_client.printf("<td>%s</td><td>", (bOutValue ? "OFF" : "ON"));
+                snprintf(onclick, 100, "setvalue('mcpout%c%i','%s')", cAB, iAB, (bOutValue ? "off" : "on"));
+                snprintf(caption, 4,  "%s", (bOutValue ? "ON" : "OFF"));
+                uic_button(&web_client, onclick, caption);
+                web_client.println("</td></tr>");
+            /*
+            if (bOutValue)
+                web_client.printf("<td>%s</td><td><a href=\"/mcp/off/%c%i\"><button class=\"button button2\"<b>ON</b></button></a></td></tr>\n", (bOutValue ? "OFF " : "ON  "), cAB, iAB);
+            else
+                web_client.printf("<td>%s</td><td><a href=\"/mcp/on/%c%i\"><button class=\"button button2\"<b>OFF</b></button></a></td></tr>\n", (bOutValue ? "OFF " : "ON  "), cAB, iAB);
+            */
+        }
+        else
+        {
+            if (meshcom_settings.node_mcp17t[io][0] == 0x00)
+                web_client.printf("<td>%s</td><td></td></tr>\n", (bInValue ? "HIGH" : "LOW "));
+            else
+                web_client.printf("<td><b>%s</b></td><td></td></tr>\n", (bInValue ? "HIGH" : "LOW "));
+        }
+
+        t_io >>= 1;
+        t_out >>= 1;
+        t_in >>= 1;
+    }
+
+    web_client.println("</table></div>");
+}
+
 /**
  * ###########################################################################################################################
  * Sends a valid HTTP header. Takes care of the status code.
@@ -1414,18 +1543,26 @@ void _create_meshcom_subheader(String title)
  * @param maxlength the maximum allowed input length
  * @param isPassword if set to TRUE, the input will be a password-type input
  */
-void _create_setup_textinput_element(const char id[], const char labelText[], String inputValue, const char placeHolder[], const char parameterName[], uint8_t maxlength, bool isPassword, bool needConfirm)
-{
+void _create_setup_textinput_element(const char id[], const char labelText[], String inputValue, const char placeHolder[], const char  parameterName[], uint8_t maxlength, bool isPassword, bool needConfirm){
+    char onclick[100]; 
+    char caption[100];
+    snprintf(onclick, 100, "setvalue('%s', document.getElementById('%s').value)", parameterName, id);
+    snprintf(caption, 100, "<i class=\"btncheckmark\"></i>");
+
+
     web_client.printf("<label for=\"%s\">%s :</label>\n", id, labelText);
-    String confirmStub = "";
-    if (needConfirm)
-    {
-        confirmStub = "if(confirm('Are you sure you want to set &quot;" + String(labelText) + "&quot; to &quot;'+document.getElementById('" + String(id) + "').value+'&quot;?'))";
-    }
     web_client.printf("<input type=\"%s\" name=\"%s\" id=\"%s\" value=\"%s\" maxlength=\"%i\" size=\"10\" placeholder=\"%s\">\n", isPassword ? "password" : "text", id, id, inputValue.c_str(), maxlength, placeHolder);
-    web_client.printf("<button onclick=\"%ssetvalue('%s', document.getElementById('%s').value)\">", confirmStub.c_str(), parameterName, id);
-    web_client.println("<i class=\"btncheckmark\"></i></button>");
+
+
+    if(needConfirm) {
+        char confirm[100];
+        snprintf(confirm, sizeof(confirm), "Are you sure you want to set &quot;%s&quot; to &quot;'+document.getElementById('%s').value+'&quot;?", labelText, id);
+        uic_button(&web_client, onclick, caption, confirm);
+    } else {
+         uic_button(&web_client, onclick, caption);
+    }
 }
+
 
 /**
  * ###########################################################################################################################
