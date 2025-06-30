@@ -1460,7 +1460,7 @@ void sub_page_mcp23017()
         t_in >>= 1;
     }
 
-    web_client.println("<tr><td rowspan=\"5\">");
+    web_client.println("<tr><td colspan=\"5\">");
     snprintf(onclick, 100, "setvalue('mcpclear','')");
     snprintf(caption, 10,  "%s", "clear all");
     uic_button(&web_client, onclick, caption);
