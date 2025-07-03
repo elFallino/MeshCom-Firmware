@@ -527,7 +527,7 @@ void deliver_scaffold(bool bget_password)
     web_client.println("function updateCharsLeft() {let maxlength = 149;if(document.getElementById(\"sendcall\").value.length>0) {maxlength-=(document.getElementById(\"sendcall\").value.length)+2;}let msglength=document.getElementById(\"messagetext\").value.length;if(msglength>maxlength){document.getElementById(\"messagetext\").value=document.getElementById(\"messagetext\").value.substring(0,maxlength);msglength=maxlength;}document.getElementById(\"indicator_charsleft\").innerHTML=maxlength-msglength;}\n");
     // this function is an ayncronous loader that is used to update the received messages without re-loading the whole page
     // MIT LOADER-Kreisel   web_client.println("function updateMessages() {document.getElementById(\"messages_panel\").innerHTML=\"<span class=\\\"loader\\\"></span>\";var xhttp = new XMLHttpRequest(); xhttp.onreadystatechange=function(){if(this.readyState==4 && this.status==200){document.getElementById(\"messages_panel\").innerHTML=this.responseText;}};xhttp.open(\"GET\",\"/?getmessages\",true);xhttp.send();};\n");
-    web_client.println("function updateMessages() {var xhttp = new XMLHttpRequest(); xhttp.onreadystatechange=function(){if(this.readyState==4 && this.status==200){document.getElementById(\"messages_panel\").innerHTML=this.responseText;}};xhttp.open(\"GET\",\"/?getmessages\",true);xhttp.send();}\n");
+    web_client.println("function updateMessages() {var xhttp = new XMLHttpRequest(); xhttp.onreadystatechange=function(){if(this.readyState==4 && this.status==200){document.getElementById(\"messages_panel\").innerHTML=this.responseText;xhttp.open(\"GET\",\"/?getmessages\",true);xhttp.send();}};}\n");
     // web_client.println("function updateMessages() {var xhttp=new XMLHttpRequest();xhttp.onreadystatechange=function(){document.getElementById(\"messages_panel\").innerHTML=this.responseText;};xhttp.open(\"GET\",\"/?getmessages\",true);xhttp.send();};\n");
     //  this function sends a parameter:value request to the backend
     web_client.println("function setvalue(param,value) {fetch(\"/setparam/?\"+param+\"=\"+value).then(function(response){return response.json();}).then(function(jsonResponse){if(jsonResponse['returncode']==1)alert(\"Value could not be set.\");if(jsonResponse['returncode']==2)alert(\"Parameter unknown to node.\");if(jsonResponse['returncode']>0){loadPage(cpage, csender)}});}\n");
@@ -1545,7 +1545,7 @@ void _create_setup_textinput_element(const char id[], const char labelText[], St
 
 
     if(needConfirm) {
-        char confirm[100];
+        char confirm[200];
         snprintf(confirm, sizeof(confirm), "Are you sure you want to set &quot;%s&quot; to &quot;'+document.getElementById('%s').value+'&quot;?", labelText, id);
         uic_button(&web_client, onclick, caption, confirm);
     } else {
