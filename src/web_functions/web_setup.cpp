@@ -460,9 +460,9 @@ void webSetup_setParam(setupStruct *setupData){
         save_settings();
 
         return;
-    }
+    } else
 
-        /// ###################################### MCPNAME ######################################
+    /// ###################################### MCPNAME ######################################
     if(setupData->paramName.substring(0,8).equals("mcpclear")) {
 
         snprintf(message_text, sizeof(message_text), "--setio clear");
@@ -476,7 +476,35 @@ void webSetup_setParam(setupStruct *setupData){
         save_settings();
 
         return;
-    }
+    } else 
+
+    /// ###################################### Indoor Temperature Offset ######################################
+    if(setupData->paramName.equals("tempoffsetindoor")) {
+        float offset = 0.0;
+        if(sscanf(setupData->paramValue.c_str(), "%f", &offset) == 1) {     //was there exactly ONE flaot value in this string?
+            meshcom_settings.node_tempi_off = offset;
+            setupData->returnCode = WS_RETURNCODE_OKAY;
+            setupData->returnValue = setupData->paramValue;
+        } else {
+            setupData->returnCode = WS_RETURNCODE_FAIL;
+            setupData->returnValue = String(meshcom_settings.node_tempi_off);
+        }
+        return;
+    } else
+    /// ###################################### Outdoor Temperature Offset ######################################
+    if(setupData->paramName.equals("tempoffsetoutdoor")) {
+        float offset = 0.0;
+        if(sscanf(setupData->paramValue.c_str(), "%f", &offset) == 1) {     //was there exactly ONE flaot value in this string?
+            meshcom_settings.node_tempo_off = offset;
+            setupData->returnCode = WS_RETURNCODE_OKAY;
+            setupData->returnValue = setupData->paramValue;
+        } else {
+            setupData->returnCode = WS_RETURNCODE_FAIL;
+            setupData->returnValue = String(meshcom_settings.node_tempo_off);
+        }
+        return;
+    } 
+
 
 
 
