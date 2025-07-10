@@ -531,7 +531,7 @@ void deliver_scaffold(bool bget_password)
     web_client.println("function updateMessages() {var xhttp=new XMLHttpRequest();xhttp.onreadystatechange=function(){if(this.readyState==4 && this.status==200){if(document.getElementById(\"messages_panel\")!=null)document.getElementById(\"messages_panel\").innerHTML=this.responseText;}};setTimeout(function(){xhttp.open(\"GET\",\"/?getmessages\",true);xhttp.send();},1000);}\n");
     // web_client.println("function updateMessages() {var xhttp=new XMLHttpRequest();xhttp.onreadystatechange=function(){document.getElementById(\"messages_panel\").innerHTML=this.responseText;};xhttp.open(\"GET\",\"/?getmessages\",true);xhttp.send();};\n");
     //  this function sends a parameter:value request to the backend
-    web_client.println("function setvalue(param,value) {fetch(\"/setparam/?\"+param+\"=\"+value).then(function(response){return response.json();}).then(function(jsonResponse){if(jsonResponse['returncode']==1)alert(\"Value could not be set.\");if(jsonResponse['returncode']==2)alert(\"Parameter unknown to node.\");if(jsonResponse['returncode']>0){loadPage(cpage,csender,false)}});}\n");
+    web_client.println("function setvalue(param,value,refresh) {fetch(\"/setparam/?\"+param+\"=\"+value).then(function(response){return response.json();}).then(function(jsonResponse){if(jsonResponse['returncode']==1)alert(\"Value could not be set.\");if(jsonResponse['returncode']==2)alert(\"Parameter unknown to node.\");if(jsonResponse['returncode']>0){loadPage(cpage,csender,false)}if(refresh)loadPage(cpage,csender,false);});}\n");
     // this function invokes a function call to the backend passing the function name and an optional parameter (e.g. sendpos)
     web_client.println("function callfunction(functionname,functionparameter){fetch(\"/callfunction/?\"+functionname+\"=\"+functionparameter).then(function(response){return response.json();}).then(function (jsonResponse) {/*Nothing todo yet.*/})}\n");
     // This function is used to toggle a css class so setup cars can collapse / expand
@@ -920,7 +920,7 @@ void sub_page_setup()
     web_client.println("<div class=\"grid\">");
     web_client.println("<span>Enter manual command:</span>");
     web_client.println("<input type=\"text\" id=\"manualcommand\" maxlength=\"40\" size=\"20\" style=\"width:100%\">");
-    web_client.println("<button onclick=\"setvalue('manualcommand', document.getElementById('manualcommand').value); document.getElementById('manualcommand').value='';\" style=\"justify-self:self-end;\">send command</button>");
+    web_client.println("<button onclick=\"setvalue('manualcommand', document.getElementById('manualcommand').value,false); document.getElementById('manualcommand').value='';\" style=\"justify-self:self-end;\">send command</button>");
     web_client.println("</div></div>");
 
     // Common Settings Section
@@ -941,7 +941,7 @@ void sub_page_setup()
         }
     }
     web_client.println("</select>");
-    web_client.println("<button onclick=\"setvalue('setctry', document.getElementById('country').value)\"><i class=\"btncheckmark\"></i></button>");
+    web_client.println("<button onclick=\"setvalue('setctry', document.getElementById('country').value,false)\"><i class=\"btncheckmark\"></i></button>");
 
     _create_setup_textinput_element("txpower", "TX Power", String(meshcom_settings.node_power), "15", "txpower", 2, false, false);                    // create Textinput-Element including Label and Button
     _create_setup_textinput_element("utcoffset", "UTC Offset", String(meshcom_settings.node_utcoff, 1).c_str(), "1.0", "utcoffset", 4, false, false); // create Textinput-Element including Label and Button
@@ -1073,7 +1073,7 @@ void sub_page_setup()
         web_client.printf("<input type=\"text\" id=\"grp%i\" value=\"%i\" maxlength=\"5\" size=\"20\" placeholder=\"0\"/>\n", i, meshcom_settings.node_gcb[i]);
     }
     web_client.println("<i></i>");
-    web_client.println("<button onclick=\"setvalue('setgrc', (document.getElementById('grp0').value+';'+document.getElementById('grp1').value+';'+document.getElementById('grp2').value+';'+document.getElementById('grp3').value+';'+document.getElementById('grp4').value+';'+document.getElementById('grp5').value))\"><i class=\"btncheckmark\"></i></button>");
+    web_client.println("<button onclick=\"setvalue('setgrc', (document.getElementById('grp0').value+';'+document.getElementById('grp1').value+';'+document.getElementById('grp2').value+';'+document.getElementById('grp3').value+';'+document.getElementById('grp4').value+';'+document.getElementById('grp5').value),false)\"><i class=\"btncheckmark\"></i></button>");
 
     _create_setup_switch_element("nomsgall", "No MSG All", "do not show messages send to all", bNoMSGtoALL); // create Switch-Element inclucing Label and Description
 
@@ -1381,6 +1381,7 @@ void sub_page_info()
 
 void sub_page_mcp23017()
 {
+
     char onclick[100];
     char caption[40];
     char id[40];
@@ -1403,6 +1404,9 @@ void sub_page_mcp23017()
     web_client.println("</colgroup>");
     web_client.println("<thead><tr class=\"font-bold\"><td>PORT</td><td>In/Out</td><td>Name</td><td>Status</td><td>Set</td></tr></thead>");
 
+
+    Serial.printf("t_out = %i\n", t_out);
+    Serial.printf("t_in = %i\n", t_in);
 
 
     for (int io = 0; io < 16; io++)
@@ -1427,8 +1431,10 @@ void sub_page_mcp23017()
             iAB = io;
         }
 
+        Serial.printf("Port %c%i has mask %i and t_in %i and t_out %i\n",cAB, iAB, t_io, t_in, t_out);
+
         web_client.printf("<tr><td>[%c%i]</td><td>", cAB, iAB);
-        snprintf(onclick, 100, "setvalue('mcpio%c%i','%s')", cAB, iAB, bOut ?"out":"in");
+        snprintf(onclick, 100, "setvalue('mcpio%c%i','%s',true)", cAB, iAB, bOut ?"in":"out");
         snprintf(caption, 4, "%s",  bOut ?"out":"in");
         uic_button(&web_client, onclick, caption);
         web_client.println("</td><td>");
@@ -1437,7 +1443,7 @@ void sub_page_mcp23017()
         snprintf(value, 100, "%s", meshcom_settings.node_mcp17t[io]);
         uic_input(&web_client, id, "", value);
 
-        snprintf(onclick, 100, "setvalue('mcpname%c%i', document.getElementById('mcpname%c%i').value)", cAB, iAB, cAB, iAB);
+        snprintf(onclick, 100, "setvalue('mcpname%c%i', document.getElementById('mcpname%c%i').value,true);", cAB, iAB, cAB, iAB);
         snprintf(caption, 4,  "set");
         uic_button(&web_client, onclick, caption);
 
@@ -1445,18 +1451,18 @@ void sub_page_mcp23017()
 
         if (bOut)
         {
-                web_client.printf("<td>%s</td><td>", (bOutValue ? "OFF" : "ON"));
-                snprintf(onclick, 100, "setvalue('mcpout%c%i','%s')", cAB, iAB, (bOutValue ? "off" : "on"));
-                snprintf(caption, 4,  "%s", (bOutValue ? "ON" : "OFF"));
+                web_client.printf("<td>%s</td><td>", (bOutValue ? "ON" : "OFF"));
+                snprintf(onclick, 100, "setvalue('mcpout%c%i','%s',true)", cAB, iAB, (bOutValue ? "off" : "on"));
+                snprintf(caption, 4,  "%s", (bOutValue ? "OFF" : "ON"));
                 uic_button(&web_client, onclick, caption);
                 web_client.println("</td></tr>");
         }
         else
         {
             if (meshcom_settings.node_mcp17t[io][0] == 0x00)
-                web_client.printf("<td>%s</td><td></td></tr>\n", (bInValue ? "HIGH" : "LOW "));
+                web_client.printf("<td>%s</td><td></td></tr>\n", (bInValue ? "HIGH" : "LOW"));
             else
-                web_client.printf("<td><b>%s</b></td><td></td></tr>\n", (bInValue ? "HIGH" : "LOW "));
+                web_client.printf("<td><b>%s</b></td><td></td></tr>\n", (bInValue ? "HIGH" : "LOW"));
         }
 
         t_io >>= 1;
@@ -1465,7 +1471,7 @@ void sub_page_mcp23017()
     }
 
     web_client.println("<tr><td colspan=\"5\">");
-    snprintf(onclick, 100, "setvalue('mcpclear','')");
+    snprintf(onclick, 100, "setvalue('mcpclear','',true)");
     snprintf(caption, 10,  "%s", "clear all");
     uic_button(&web_client, onclick, caption);
     web_client.println("</td></tr></table></div>");
@@ -1537,7 +1543,7 @@ void _create_meshcom_subheader(String title)
 void _create_setup_textinput_element(const char id[], const char labelText[], String inputValue, const char placeHolder[], const char  parameterName[], uint8_t maxlength, bool isPassword, bool needConfirm){
     char onclick[100]; 
     char caption[100];
-    snprintf(onclick, 100, "setvalue('%s', document.getElementById('%s').value)", parameterName, id);
+    snprintf(onclick, 100, "setvalue('%s', document.getElementById('%s').value,false)", parameterName, id);
     snprintf(caption, 100, "<i class=\"btncheckmark\"></i>");
 
 
@@ -1567,7 +1573,7 @@ void _create_setup_textinput_element(const char id[], const char labelText[], St
 void _create_setup_switch_element(const char id[], const char labelText[], const char descriptionText[], bool checked)
 {
     web_client.printf("<label for=\"%s\">%s <span class=\"font-small\">(%s)</span></label>\n", id, labelText, descriptionText);
-    web_client.printf("<input type=\"checkbox\" role=\"switch\" id=\"%s\" %s onchange=\"setvalue(this.id,this.checked?'on':'off')\"/>\n", id, checked ? "checked" : "");
+    web_client.printf("<input type=\"checkbox\" role=\"switch\" id=\"%s\" %s onchange=\"setvalue(this.id,this.checked?'on':'off',false)\"/>\n", id, checked ? "checked" : "");
 }
 
 /**
