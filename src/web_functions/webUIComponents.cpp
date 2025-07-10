@@ -13,7 +13,9 @@
 /// @param confirmationText A brief text hat is displayed for a confirmation.
 
 void uic_button(CommonWebClient* target, char onClickHandler[], char buttonCaption[], char confirmationText[]){
-    target->printf("<button onclick=\"if(confirm('%s'))%s\">%s</button>\n" , confirmationText, onClickHandler, buttonCaption);
+    target->printf("<button onclick=\"if(confirm('%s'))", confirmationText);
+    target->printf("%s\">", onClickHandler);
+    target->printf("%s</button>\n", buttonCaption);
 }
 
 /// #######################################################################################################################################
@@ -22,7 +24,8 @@ void uic_button(CommonWebClient* target, char onClickHandler[], char buttonCapti
 /// @param onClickHandler An ECMAScript routine that is put into the "onclick"-handler.
 /// @param buttonCaption The Caption that is put between <button> </button> ... can be anything HTML allows.
 void uic_button(CommonWebClient* target, char onClickHandler[], char buttonCaption[]){
-    target->printf("<button onclick=\"%s\">%s</button>\n", onClickHandler, buttonCaption);
+    target->printf("<button onclick=\"%s\">", onClickHandler);
+    target->printf("%s</button>\n", buttonCaption);
 }
 
 /// #######################################################################################################################################
