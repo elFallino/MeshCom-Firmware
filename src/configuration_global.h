@@ -15,6 +15,7 @@
 #define HELTEC_V1 11
 #define TBEAM_AXP2101 12
 #define EBYTE_E22 39
+#define T5_EPAPER 40
 #define HELTEC_TRACKER 41
 #define HELTEC_STICK_V3 42
 #define HELTEC_V3 43
@@ -23,6 +24,7 @@
 #define T_DECK_PLUS 46
 #define TBEAM_SUPREME_L76K 47
 #define ESP32_S3_EBYTE_E22 48
+#define TLORA_PAGER 49
 
 #define DEFAULT_PREAMPLE_LENGTH 32
 
