@@ -452,7 +452,6 @@ void webSetup_setParam(setupStruct *setupData){
         if(port.charAt(0)=='B') t_io+=8;
 
         snprintf(meshcom_settings.node_mcp17t[t_io], sizeof(meshcom_settings.node_mcp17t[t_io]), "%s", setupData->paramValue.c_str());
-        save_settings();
 
         setupData->returnCode = (strcmp(meshcom_settings.node_mcp17t[t_io],setupData->paramValue.c_str()) == 0)?WS_RETURNCODE_OKAY:WS_RETURNCODE_FAIL;
         setupData->returnValue = meshcom_settings.node_mcp17t[t_io];
@@ -473,8 +472,6 @@ void webSetup_setParam(setupStruct *setupData){
         setupData->returnCode = WS_RETURNCODE_OKAY;
         setupData->returnValue = "";
 
-        save_settings();
-
         return;
     } else 
 
@@ -485,6 +482,8 @@ void webSetup_setParam(setupStruct *setupData){
             meshcom_settings.node_tempi_off = offset;
             setupData->returnCode = WS_RETURNCODE_OKAY;
             setupData->returnValue = setupData->paramValue;
+
+            save_settings();
         } else {
             setupData->returnCode = WS_RETURNCODE_FAIL;
             setupData->returnValue = String(meshcom_settings.node_tempi_off);
@@ -498,6 +497,8 @@ void webSetup_setParam(setupStruct *setupData){
             meshcom_settings.node_tempo_off = offset;
             setupData->returnCode = WS_RETURNCODE_OKAY;
             setupData->returnValue = setupData->paramValue;
+
+            save_settings();
         } else {
             setupData->returnCode = WS_RETURNCODE_FAIL;
             setupData->returnValue = String(meshcom_settings.node_tempo_off);
