@@ -414,6 +414,7 @@ bool g_ble_uart_is_connected = false;
 uint8_t dmac[6] = {0};
 
 unsigned long gps_refresh_timer = 0;
+unsigned long mcp_refresh_timer = 0;
 unsigned long softser_refresh_timer = 0;
 unsigned long rtc_refresh_timer = 0;
 unsigned long pixels_delay = 0;
@@ -1883,6 +1884,20 @@ void esp32loop()
         }
     }
 
+
+    #if defined(ENABLE_MCP23017)
+    // 5 sec
+    if ((mcp_refresh_timer + 5000) < millis())
+    {
+        // get i/o state
+        if(loopMCP23017())
+        {
+        }
+
+        mcp_refresh_timer = millis();
+    }
+    #endif
+
     // gps refresh every 10 sec
     unsigned long gps_refresh_intervall = GPS_REFRESH_INTERVAL;
 
@@ -1892,11 +1907,6 @@ void esp32loop()
 
     if ((gps_refresh_timer + (gps_refresh_intervall * 1000)) < millis())
     {
-        // get i/o state
-        if(loopMCP23017())
-        {
-        }
-
         #ifdef ENABLE_GPS
 
         unsigned int igps=0;
@@ -2133,9 +2143,13 @@ void esp32loop()
             #if defined(ENABLE_BMX280)
                 if(loopBMX280())
                 {
-                    if(!aht20_found)
+                    if(!aht20_found && !bmp3_found)
                     {
                         meshcom_settings.node_temp = getTemp();
+                    }
+
+                    if(!aht20_found)
+                    {
                         meshcom_settings.node_hum = getHum();
                     }
 
@@ -2177,7 +2191,10 @@ void esp32loop()
             if(loopBMP390())
             {
                 meshcom_settings.node_press = getPress3();
-                meshcom_settings.node_temp = getTemp3();
+                if(!aht20_found)
+                {
+                    meshcom_settings.node_temp = getTemp3();
+                }
                 meshcom_settings.node_press_asl = getPressASL3();
                 meshcom_settings.node_press_alt = getAltitude3();
             }

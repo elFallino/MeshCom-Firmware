@@ -319,9 +319,14 @@ void getMeshComUDPpacket(unsigned char inc_udp_buffer[UDP_TX_BUF_SIZE], int pack
             else
               ringBuffer[iWrite][1] = 0xFF; // retransmission Status ...0xFF no retransmission
             memcpy(ringBuffer[iWrite] + 2, convBuffer, size);
+
+            addRingPointer(iWrite, iRead, MAX_RING);
+
+            /*
             iWrite++;
             if (iWrite >= MAX_RING) // if the buffer is full we start at index 0 -> take care of overwriting!
               iWrite = 0;
+            */
 
             addLoraRxBuffer(aprsmsg.msg_id, true);
 
@@ -462,7 +467,7 @@ bool startWIFI()
     WiFi.softAP(meshcom_settings.node_call);
     
     if(meshcom_settings.node_wifi_power > 0)
-      esp_wifi_set_max_tx_power((int8_t)meshcom_settings.node_wifi_power);
+      esp_wifi_set_max_tx_power((int8_t)meshcom_settings.node_wifi_power*4);
     else
       WiFi.setTxPower(WIFI_POWER_8_5dBm);
 
@@ -515,7 +520,7 @@ bool startWIFI()
     WiFi.mode(WIFI_STA);
     
     if(meshcom_settings.node_wifi_power > 0)
-      esp_wifi_set_max_tx_power((int8_t)meshcom_settings.node_wifi_power);
+      esp_wifi_set_max_tx_power((int8_t)meshcom_settings.node_wifi_power*4);
     else
       WiFi.setTxPower(WIFI_POWER_8_5dBm);
 
@@ -540,7 +545,7 @@ bool startWIFI()
     WiFi.mode(WIFI_STA);
 
     if(meshcom_settings.node_wifi_power > 0)
-      esp_wifi_set_max_tx_power((int8_t)meshcom_settings.node_wifi_power);
+      esp_wifi_set_max_tx_power((int8_t)meshcom_settings.node_wifi_power*4);
     else
       WiFi.setTxPower(WIFI_POWER_8_5dBm);
 
@@ -842,9 +847,13 @@ void addUdpOutBuffer(uint8_t* buffer, uint16_t len)
     //DEBUG_MSG_VAL("UDP", udpWrite, "UDP Ringbuf added El.:");
     //neth.printBuffer(ringBufferUDPout[udpWrite], len + 1);
 
+    addRingPointer(udpWrite, udpRead, MAX_RING_UDP);
+
+    /*
     udpWrite++;
     if (udpWrite >= MAX_RING_UDP) // if the buffer is full we start at index 0 -> take care of overwriting!
         udpWrite = 0;
+    */
 
 }
 
