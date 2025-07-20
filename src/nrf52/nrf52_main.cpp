@@ -640,14 +640,20 @@ void nrf52setup()
     }
     #endif // LPS33
 
+    shtc3_found = false;
+
     #if defined(SHTC3)
 
-    Serial.println("Adafruit SHTC3 check");
-    if (!shtc3.begin()) {
-        Serial.println("Couldn't find SHTC3");
-        while (1) delay(1);
+    Serial.println("[INIT]...Adafruit SHTC3 check");
+    if (!shtc3.begin())
+    {
+        Serial.println("[INIT]...Couldn't find SHTC3");
     }
-    Serial.println("SHTC3 sensor found");
+    else
+    {
+        Serial.println("[INIT]...SHTC3 sensor found");
+        shtc3_found = true;
+    }
 
     #endif // SHTC3
 
@@ -1366,7 +1372,8 @@ if (isPhoneReady == 1)
     // TEMP/HUM
     if (((temphum_timer + TEMPHUM_INTERVAL) < millis()))
     {
-        getTEMP();
+        if(shtc3_found)
+            getTEMP();
 
         temphum_timer = millis();
     }
@@ -1951,7 +1958,7 @@ void sendUDP()
 {
     if(udpWrite != udpRead)
     {
-        if(bDEBUG)
+        if(bDisplayCont)
             Serial.printf("udpWrite:%i udpRead:%i neth.udp_is_busy:%i\n", udpWrite, udpRead, neth.udp_is_busy);
 
         if(!neth.udp_is_busy)
