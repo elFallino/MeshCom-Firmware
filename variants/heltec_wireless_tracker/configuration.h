@@ -18,6 +18,7 @@ definitions for HELTEC_V3
 #define ENABLE_BMX680
 #define ENABLE_BMP390
 #define ENABLE_AHT20
+#define ENABLE_SHT21
 #define ENABLE_MCP23017
 #define ENABLE_MC811
 //I2C fault #define ENABLE_INA226
@@ -89,7 +90,7 @@ definitions for HELTEC_V3
 
 #define GPS_RX_PIN 34 //*
 #define GPS_TX_PIN 33 //*
-#define GPS_BAUDRATE 115200 //*
+#define GPS_BAUDRATE_MODUL 115200 //*
 
 #define VEXT_CTRL   3   // To turn on GPS and TFT
 #define ADC_CTRL    2   // ADC_CTRL = HIGH

@@ -23,12 +23,14 @@
 #include "bmx280.h"
 #include "bmp390.h"
 #include "aht20.h"
+#include "sht21.h"
 #include "mcu811.h"
 #include "io_functions.h"
 #include "softser_functions.h"
 #include <onewire_functions.h>
 #include <onebutton_functions.h>
 
+#include "INA226.h"
 //TEST #include "compress_functions.h"
 
 #if defined(ENABLE_BMX680)
@@ -967,6 +969,81 @@ void commandAction(char *umsg_text, bool ble)
     }
     else
     #endif
+    if(commandCheck(msg_text+2, (char*)"shunt ") == 0)
+    {
+        snprintf(_owner_c, sizeof(_owner_c), "%s", msg_text+8);
+        sscanf(_owner_c, "%lf", &dVar);
+
+        //printf("_owner_c:%s fVar:%f\n", _owner_c, dVar);
+
+        if(dVar < INA226_MINIMAL_SHUNT_OHM || dVar > 0.5)
+        {
+            Serial.printf("INA226 Rs (shunt) not > %.3f and < 0.500 Ω\n", INA226_MINIMAL_SHUNT_OHM);
+            return;
+        }
+
+        meshcom_settings.node_shunt=dVar;
+
+        save_settings();
+
+        if(ble)
+        {
+            bSensSetting=true;
+        }
+
+        bReturn = true;
+    }
+    else
+    if(commandCheck(msg_text+2, (char*)"imax ") == 0)
+    {
+        snprintf(_owner_c, sizeof(_owner_c), "%s", msg_text+7);
+        sscanf(_owner_c, "%lf", &dVar);
+
+        //printf("_owner_c:%s fVar:%f\n", _owner_c, dVar);
+
+        if(dVar < 0 || dVar > 20)
+        {
+            Serial.printf("INA226 maxCurrent 20 A\n");
+            return;
+        }
+
+        meshcom_settings.node_imax=dVar;
+
+        save_settings();
+
+        if(ble)
+        {
+            bSensSetting=true;
+        }
+
+        bReturn = true;
+    }
+    else
+    if(commandCheck(msg_text+2, (char*)"isamp ") == 0)
+    {
+        snprintf(_owner_c, sizeof(_owner_c), "%s", msg_text+8);
+        sscanf(_owner_c, "%i", &iVar);
+
+        //printf("_owner_c:%s fVar:%f\n", _owner_c, dVar);
+
+        if(iVar < 0 || iVar > 7)
+        {
+            Serial.printf("INA226 Samples 0...7\n");
+            return;
+        }
+
+        meshcom_settings.node_isamp=iVar;
+
+        save_settings();
+
+        if(ble)
+        {
+            bSensSetting=true;
+        }
+
+        bReturn = true;
+    }
+    else
     if(commandCheck(msg_text+2, (char*)"batt factor ") == 0)
     {
         snprintf(_owner_c, sizeof(_owner_c), "%s", msg_text+14);
@@ -1348,9 +1425,63 @@ void commandAction(char *umsg_text, bool ble)
 
         save_settings();
 
-        #if defined(ENABLE_AHT20)
-            setupAHT20(false);
-        #endif
+        setupAHT20(false);
+    }
+    else
+    if(commandCheck(msg_text+2, (char*)"aht20 off") == 0)
+    {
+        bAHT20ON=false;
+        aht20_found = false;
+        
+        meshcom_settings.node_sset3 &= ~0x0020; // AHT20 off
+
+        if(ble)
+        {
+            bSensSetting = true;
+        }
+
+        bReturn = true;
+
+        save_settings();
+    }
+    else
+    #endif
+
+    #if defined(ENABLE_SHT21)
+    if(commandCheck(msg_text+2, (char*)"sht21 on") == 0)
+    {
+        if(ble)
+        {
+            bSensSetting = true;
+        }
+
+        bReturn = true;
+
+        bSHT21ON = true;
+        sht21_found = false;
+        
+        meshcom_settings.node_sset3 |= 0x0400;
+
+        save_settings();
+
+        setupSHT21(false);
+    }
+    else
+    if(commandCheck(msg_text+2, (char*)"sht21 off") == 0)
+    {
+        if(ble)
+        {
+            bSensSetting = true;
+        }
+
+        bReturn = true;
+
+        bSHT21ON = false;
+        sht21_found = false;
+        
+        meshcom_settings.node_sset3 &= ~0x0400;
+
+        save_settings();
     }
     else
     #endif
@@ -1401,22 +1532,6 @@ void commandAction(char *umsg_text, bool ble)
         bBMP3ON=false;
         
         meshcom_settings.node_sset3 &= ~0x0010; // BMP390 off
-
-        if(ble)
-        {
-            bSensSetting = true;
-        }
-
-        bReturn = true;
-
-        save_settings();
-    }
-    else
-    if(commandCheck(msg_text+2, (char*)"aht20 off") == 0)
-    {
-        bAHT20ON=false;
-        
-        meshcom_settings.node_sset3 &= ~0x0020; // AHT20 off
 
         if(ble)
         {
@@ -1856,14 +1971,14 @@ void commandAction(char *umsg_text, bool ble)
 
         if(ble)
         {
-            addBLECommandBack((char*)"--extudp on");
+            bWifiSetting=true;
         }
 
         save_settings();
 
         resetExternUDP();
 
-        return;
+        bReturn = true;
     }
     else
     if(commandCheck(msg_text+2, (char*)"extudp off") == 0)
@@ -1874,12 +1989,12 @@ void commandAction(char *umsg_text, bool ble)
 
         if(ble)
         {
-            addBLECommandBack((char*)"--extudp off");
+            bWifiSetting=true;
         }
 
         save_settings();
 
-        return;
+        bReturn = true;
     }
     else
     if(commandCheck(msg_text+2, (char*)"extudpip") == 0)
@@ -1899,9 +2014,14 @@ void commandAction(char *umsg_text, bool ble)
             return;
         }
 
+        if(ble)
+        {
+            bWifiSetting=true;
+        }
+
         save_settings();
 
-        return;
+        bReturn = true;
     }
     else
     if(commandCheck(msg_text+2, (char*)"debug on") == 0)
@@ -2052,7 +2172,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bWXDEBUG=true;
 
-        meshcom_settings.node_sset3 = meshcom_settings.node_sset3 | 0x0008;
+        meshcom_settings.node_sset3 = meshcom_settings.node_sset3 | 0x0200;
 
         if(ble)
         {
@@ -2068,7 +2188,7 @@ void commandAction(char *umsg_text, bool ble)
     {
         bWXDEBUG=false;
 
-        meshcom_settings.node_sset3 &= ~0x0008;
+        meshcom_settings.node_sset3 &= ~0x0200;
 
         if(ble)
         {
@@ -3736,14 +3856,24 @@ void commandAction(char *umsg_text, bool ble)
             if(bAHT20ON)
                 snprintf(cAHT20, sizeof(cAHT20), " (%s)",  (aht20_found?"found":"error"));
 
+            char cSHT21[10]={0};
+            if(bSHT21ON)
+                snprintf(cSHT21, sizeof(cSHT21), " (%s)",  (sht21_found?"found":"error"));
+
             char cone[10]={0};
+            char cdht[10]={0};
             if(bONEWIRE)
+            {
                 snprintf(cone, sizeof(cone), " (%s)",  (one_found?"found":"error"));
+                snprintf(cdht, sizeof(cdht), " (%s)",  (dht_found?"found":"error"));
+            }
 
-            Serial.printf("\n\nMeshCom %-4.4s%-1.1s\n...BMP280: %s / BME280: %s%s\n...BMP390: %s%s\n...BME680: %s%s\n...MCU811: %s%s\n...AHT20: %s%s\n...INA226: %s\n...LPS33: %s (RAK)\n...ONEWIRE: %s%s (%i)\n", SOURCE_VERSION, SOURCE_VERSION_SUB,
-            (bBMPON?"on":"off"), (bBMEON?"on":"off"), cbme, (bBMP3ON?"on":"off"), cbmp3, (bBME680ON?"on":"off"), c680, (bMCU811ON?"on":"off"), c811, (bAHT20ON?"on":"off"), cAHT20, (bINA226ON?"on":"off"), (bLPS33?"on":"off"), (bONEWIRE?"on":"off"), cone, meshcom_settings.node_owgpio);
+            Serial.printf("\n\nMeshCom %-4.4s%-1.1s\n...BMP280: %s / BME280: %s%s\n...BMP390: %s%s\n...BME680: %s%s\n...MCU811: %s%s\n...AHT20: %s%s\n...SHT21: %s%s\n...INA226: %s\n...LPS33: %s (RAK)\n", SOURCE_VERSION, SOURCE_VERSION_SUB,
+            (bBMPON?"on":"off"), (bBMEON?"on":"off"), cbme, (bBMP3ON?"on":"off"), cbmp3, (bBME680ON?"on":"off"), c680, (bMCU811ON?"on":"off"), c811, (bAHT20ON?"on":"off"), cAHT20, (bSHT21ON?"on":"off"), cSHT21, (bINA226ON?"on":"off"), (bLPS33?"on":"off"));
 
-            Serial.printf("...TEMP: %.1f °C off %.3f\n...TOUT: %.1f °C off %.3f\n...HUM: %.1f %%rH\n...QFE: %.1f hPa\n...QNH: %.1f hPa\n...ALT asl: %i m\n...GAS: %.1f kOhm\n...eCO2: %.0f ppm\n", 
+            Serial.printf("...ONEWIRE: %s (%i) DS18%s DHT%s\n", (bONEWIRE?"on":"off"), meshcom_settings.node_owgpio, cone, cdht);
+
+            Serial.printf("...TEMP: %.1f °C off %.3f\n...TOUT: %.1f °C off %.3f\n...HUM: %.1f %%rH\n...QFE: %.1f hPa\n...QNH: %.1f hPa\n...ALT asl: %i m\n...GAS: %.1f kΩ\n...eCO2: %.0f ppm\n", 
             meshcom_settings.node_temp, meshcom_settings.node_tempi_off, meshcom_settings.node_temp2, meshcom_settings.node_tempo_off, meshcom_settings.node_hum, meshcom_settings.node_press, meshcom_settings.node_press_asl, meshcom_settings.node_press_alt, meshcom_settings.node_gas_res, meshcom_settings.node_co2);
         }
 
@@ -4074,14 +4204,32 @@ void commandAction(char *umsg_text, bool ble)
         sensdoc["OWPIN"] = meshcom_settings.node_owgpio;
         sensdoc["OWF"] = one_found;
         sensdoc["USERPIN"] = ibt;
-        sensdoc["INA226"] = ina226_found;
 
         // reset print buffer
         memset(print_buff, 0, sizeof(print_buff));
 
         serializeJson(sensdoc, print_buff, measureJson(sensdoc));
 
-        // no flag needed anymore - json comes as is
+        // clear buffer
+        memset(msg_buffer, 0, sizeof(msg_buffer));
+
+        // set data message flag and tx ble
+        msg_buffer[0] = 0x44;
+        memcpy(msg_buffer +1, print_buff, strlen(print_buff));
+        addBLEComToOutBuffer(msg_buffer, strlen(print_buff) + 1);
+
+        JsonDocument sensdoc1;
+
+        sensdoc1["TYP"] = "S1";
+        sensdoc1["INA226"] = ina226_found;
+        sensdoc1["SHUNT"] = meshcom_settings.node_shunt;
+        sensdoc1["IMAX"] = meshcom_settings.node_imax;
+        sensdoc1["SAMP"] = meshcom_settings.node_isamp;
+
+        // reset print buffer
+        memset(print_buff, 0, sizeof(print_buff));
+
+        serializeJson(sensdoc1, print_buff, measureJson(sensdoc1));
 
         // clear buffer
         memset(msg_buffer, 0, sizeof(msg_buffer));
@@ -4119,6 +4267,8 @@ void commandAction(char *umsg_text, bool ble)
         swdoc["OWNIP"] = meshcom_settings.node_ownip;
         swdoc["OWNGW"] = meshcom_settings.node_owngw;
         swdoc["OWNMS"] = meshcom_settings.node_ownms;
+        swdoc["EUDP"] = bEXTUDP;
+        swdoc["EUDPIP"] = meshcom_settings.node_extern;
 
         // reset print buffer
         memset(print_buff, 0, sizeof(print_buff));
@@ -4287,6 +4437,8 @@ void sendNodeSetting()
 
 void sendAnalogSetting()
 {
+    #ifndef BOARD_RAK4630
+    
     JsonDocument asetdoc;
 
     asetdoc["TYP"] = "AN";
@@ -4315,6 +4467,9 @@ void sendAnalogSetting()
     msg_buffer[0] = 0x44;
     memcpy(msg_buffer +1, print_buff, strlen(print_buff));
     addBLEComToOutBuffer(msg_buffer, strlen(print_buff) + 1);
+
+    #endif
+
 }
 
 // sends APRS settings to the phone

@@ -74,6 +74,7 @@ bool bGPSON = false;
 bool bBMPON = false;
 bool bBMP3ON = false;
 bool bAHT20ON = false;
+bool bSHT21ON = false;
 bool bBMEON = false;
 bool bBME680ON = false;
 bool bMCU811ON = false;
@@ -94,6 +95,7 @@ bool bme680_found = false;
 bool bmx_found = false;
 bool bmp3_found = false;
 bool aht20_found =false;
+bool sht21_found = false;
 bool mcu811_found = false;
 bool one_found = false;
 bool ina226_found = false;
@@ -149,17 +151,6 @@ String strSOFTSERAPP_NAME = "";  // Name der Messstelle
 // TELEMTRY global variables
 int iNextTelemetry=0;
 String strTelemetry="";
-
-// ANALOG values
-unsigned long analog_oversample_timer = 0;
-// ADC-filtering variables
-uint16_t ADCraw = 0;
-float ADCalpha = 0.1;
-float ADCexp1 = 0.0;
-float ADCexp1pre = 0.0;
-float ADCexp12 = 0.0;
-float ADCexp12pre = 0.0;
-float ADCexp2 = 0.0;
 
 // same set of variables for BATT
 float BATTalpha = 0.1;
@@ -388,8 +379,10 @@ void addBLEOutBuffer(uint8_t *buffer, uint16_t len)
  */
 void addBLEComToOutBuffer(uint8_t *buffer, uint16_t len)
 {
-    if (len > UDP_TX_BUF_SIZE)
-        len = UDP_TX_BUF_SIZE-1; // just for safety
+    if (len > 245)
+    {
+        Serial.printf("[ERR]...BLE out-buffer to long <%i> <%-15.15s>\n", len, buffer);
+    }
 
     //first two bytes are always the message length
     BLEComToPhoneBuff[ComToPhoneWrite][0] = len;
@@ -398,7 +391,6 @@ void addBLEComToOutBuffer(uint8_t *buffer, uint16_t len)
     if(bBLEDEBUG)
     {
         Serial.printf("<%s> BLEComToPhone RingBuff added len=%i to element: %u\n", buffer, len, ComToPhoneWrite);
-        //printBuffer(BLEComToPhoneBuff[ComToPhoneWrite], len + 1);
     }
 
     ComToPhoneWrite++;
@@ -568,6 +560,10 @@ int esp32_isSSD1306(int address)
 
     #if defined (BOARD_T5_EPAPER)
         return 1;
+    #endif
+
+    #if defined (BOARD_TBEAM_V3)
+        return 2;
     #endif
 
     TwoWire *w = NULL;
@@ -2050,15 +2046,102 @@ void sendMessage(char *msg_text, int len)
         }
     }
 
-    if((len-ispos) < 1 || (len-ispos) > 160)
+    // umwandeln %F0%9F%98%80%
+    int ii=0;
+    int in=0;
+    unsigned int ib=0;
+    char msg_text_check[200];
+    char msg_text_checked[200];
+    int len_check=len;
+
+    memset(msg_text_checked, 0x00, sizeof(msg_text_checked));
+    memset(msg_text_check, 0x00, sizeof(msg_text_check));
+
+    memcpy(msg_text_check, msg_text+ispos, len_check);
+
+    if(bDisplayCont)
     {
-        Serial.printf("sendMessage wrong text length:%i\n", len-ispos);
+        Serial.print("SendMessage in:");
+        Serial.println(msg_text_check);
+    }
+
+    int iulng=0;
+
+    for(int iu=ispos; iu<=len_check; iu++)
+    {
+        if(memcmp(msg_text_check+ii, "%C2", 3) == 0)
+            iulng=6;
+        if(memcmp(msg_text_check+ii, "%EF", 3) == 0)
+            iulng=9;
+        if(memcmp(msg_text_check+ii, "%E2", 3) == 0)
+            iulng=9;
+        if(memcmp(msg_text_check+ii, "%F0", 3) == 0)
+            iulng=12;
+
+        if(memcmp(msg_text_check+ii, "%0A", 3) == 0)
+        {
+            msg_text_checked[in] = ' ';
+            in++;
+
+            ii=ii+3;
+        }
+        else
+        if(iulng > 0)
+        {
+            for(int is=1;is<iulng;is=is+3)
+            {
+                if(msg_text_check[ii+is] >= 'A')
+                    ib = (msg_text_check[ii+is] - 'A') + 10;
+                else
+                    ib = msg_text_check[ii+is] - '0';
+
+                if(msg_text_check[ii+is+1] >= 'A')
+                    ib = (ib << 4) | ((msg_text_check[ii+is+1] - 'A') + 10);
+                else
+                    ib = (ib << 4) | (msg_text_check[ii+is+1] - '0');
+
+                msg_text_checked[in] = ib;
+                in++;
+            }
+
+            ii=ii+iulng;
+
+            iulng=0;
+        }
+        else
+        {
+            msg_text_checked[in] = msg_text_check[ii];
+            in++;
+            ii++;
+        }
+    }
+
+    if(bDisplayCont)
+    {
+        Serial.print("SendMessage out:");
+        Serial.println(msg_text_checked);
+    }
+
+    /*
+    Serial.println(msg_text_check);
+    Serial.println(msg_text_checked);
+    for(int iu=0;iu<50;iu++)
+    {
+        Serial.printf("%02X ", msg_text_checked[iu]);
+    }
+    Serial.println("");
+    */
+
+    String strMsg = msg_text_checked;
+
+    String strDestinationCall = "*";
+    
+    if(strMsg.length() < 1 || strMsg.length() > 160)
+    {
+        Serial.printf("sendMessage wrong text length:%i\n", strMsg.length());
         return;
     }
 
-    String strDestinationCall = "*";
-    String strMsg = msg_text+ispos;
-    
     bool bDM=false;
 
     if(strMsg.charAt(0) == '{')

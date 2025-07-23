@@ -146,6 +146,10 @@ struct s_meshcom_settings
 	float node_tempi_off = 0.0;
 	float node_tempo_off = 0.0;
 
+	float node_shunt = 0.002;
+	float node_imax = 20.0;
+	int node_isamp = 7;
+
 	// nicht im Flash
 	int node_press_alt = 0;
 	float node_press_asl = 0;
@@ -164,7 +168,7 @@ struct s_meshcom_settings
 	int max_hop_text = 0;
 	int max_hop_pos = 0;
 
-	char node_update[20] = {0};
+	char node_update[21] = {0};
 
 	char node_parm_1[100] = {0};
 	char node_parm_t[150] = {0};

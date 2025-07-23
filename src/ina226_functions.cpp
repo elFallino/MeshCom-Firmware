@@ -35,10 +35,22 @@ bool setupINA226()
         return false;
     }
 
-    INA0.setMaxCurrentShunt(1, 0.002);
-    INA0.setAverage(INA226_1024_SAMPLES);
+    // der max. zu erwartende Strom sollte zum Rshunt passen,
+    // da sonst u.U. fehlerhafte Werte zurückgegeben werden.
+    if(meshcom_settings.node_shunt > INA226_MINIMAL_SHUNT_OHM && meshcom_settings.node_shunt < 0.5)
+        INA0.setMaxCurrentShunt(meshcom_settings.node_imax, meshcom_settings.node_shunt);
+    else
+        INA0.setMaxCurrentShunt(20.0, 0.002); // Rshunt 0.002 Ω --> iMax 20A
 
-    Serial.println("[INIT]...INA226 set");
+    if(meshcom_settings.node_isamp > 0 && meshcom_settings.node_isamp <= 7)
+        INA0.setAverage(meshcom_settings.node_isamp);
+    else
+        INA0.setAverage(INA226_1024_SAMPLES);
+
+    INA0.setShuntVoltageConversionTime(7);
+    INA0.setBusVoltageConversionTime(7);
+
+    Serial.printf("[INIT]...INA226 set R(shunt):%.3f Ω - maxCurrent:%.3f - maxSamples:%i\n", meshcom_settings.node_shunt, meshcom_settings.node_imax, meshcom_settings.node_isamp);
 
     bINA226ON = true;
 
